@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     id("kotlin-android")
     // Flutter plugin must be applied after Android and Kotlin
     id("dev.flutter.flutter-gradle-plugin")
@@ -22,7 +25,7 @@ android {
     defaultConfig {
         // Your app ID (package name)
         applicationId = "com.example.elearningapp_flutter"
-        minSdk = flutter.minSdkVersion
+        minSdk = 21
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -39,3 +42,9 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Add any additional dependencies here if needed
+}
+
+apply(plugin = "com.google.gms.google-services")

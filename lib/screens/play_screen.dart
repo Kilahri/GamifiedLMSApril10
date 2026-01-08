@@ -9,7 +9,8 @@ import 'package:elearningapp_flutter/play/Word_Connect.dart' as wordconnect;
 
 class PlayScreen extends StatelessWidget {
   final String role;
-  const PlayScreen({super.key, required this.role});
+  final String username;
+  const PlayScreen({super.key, required this.role, required this.username});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +23,11 @@ class PlayScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         title: const Text(
           "PLAY",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 24), // Bigger title
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 24,
+          ), // Bigger title
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -66,24 +71,32 @@ class PlayScreen extends StatelessWidget {
               child: Text(
                 "🔥 Daily Feature",
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
 
             // --- 3. Feature Banner (Enhanced with Overlay) ---
-            _featureBanner(context, "Space Explorer Adventure", "lib/assets/spaceExplorer.jpg", AdventureScreen(role: role)),
+            _featureBanner(
+              context,
+              "Space Explorer Adventure",
+              "lib/assets/spaceExplorer.jpg",
+              AdventureScreen(role: role),
+            ),
 
             // --- 4. Play Games Section Title ---
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16), // Increased vertical padding
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ), // Increased vertical padding
               child: Text(
                 "🎮 Play Games",
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
 
@@ -94,16 +107,53 @@ class PlayScreen extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // Added vertical padding
-              childAspectRatio: 0.85, // Adjust aspect ratio for better card shape
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ), // Added vertical padding
+              childAspectRatio:
+                  0.85, // Adjust aspect ratio for better card shape
               children: [
-                _gameCard(context, "Daily Quiz", "lib/assets/quiz.jpg", QuizScreen(role: role), Icons.lightbulb),
-                _gameCard(context, "Jigsaw Puzzle", "lib/assets/puzzle.jpg", PuzzleScreen(role: role), Icons.extension),
-                _gameCard(context, "Adventure Quest", "lib/assets/spaceExplorer.jpg", AdventureScreen(role: role), Icons.rocket_launch),
-                _gameCard(context, "Matching Game", "lib/assets/popularRead.png", TriviaScreen(role: role), Icons.compare_arrows),
-                _gameCard(context, "Word Connect", "lib/assets/popularPlay.png", wordconnect.WordConnectScreen(role: role), Icons.sort_by_alpha),
+                _gameCard(
+                  context,
+                  "Daily Quiz",
+                  "lib/assets/quiz.jpg",
+                  QuizScreenWithAchievements(
+                    role: role,
+                    username: username, // ✅ Add this
+                  ),
+                  Icons.lightbulb,
+                ),
+                _gameCard(
+                  context,
+                  "Jigsaw Puzzle",
+                  "lib/assets/puzzle.jpg",
+                  ScienceFusionHome(username: "Student"),
+                  Icons.extension,
+                ),
+                _gameCard(
+                  context,
+                  "Adventure Quest",
+                  "lib/assets/spaceExplorer.jpg",
+                  AdventureScreen(role: role),
+                  Icons.rocket_launch,
+                ),
+                _gameCard(
+                  context,
+                  "Matching Game",
+                  "lib/assets/popularRead.png",
+                  TriviaScreen(role: role),
+                  Icons.compare_arrows,
+                ),
+                _gameCard(
+                  context,
+                  "Word Connect",
+                  "lib/assets/popularPlay.png",
+                  wordconnect.WordConnectScreen(role: role),
+                  Icons.sort_by_alpha,
+                ),
+
                 // Added a dummy card for demonstration
-                
               ],
             ),
             const SizedBox(height: 20), // Padding at the bottom
@@ -124,7 +174,7 @@ class PlayScreen extends StatelessWidget {
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
           // 🎨 More vibrant button color
-          backgroundColor: const Color(0xFF3B5998), 
+          backgroundColor: const Color(0xFF3B5998),
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25), // More rounded
@@ -135,22 +185,19 @@ class PlayScreen extends StatelessWidget {
         onPressed: () {},
         icon: Icon(icon, size: 16),
         label: Text(
-          title, 
-          style: const TextStyle(
-            fontSize: 13, 
-            fontWeight: FontWeight.w600
-          )
+          title,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
-  
+
   /// Enhanced Feature Banner with Overlay Text
   Widget _featureBanner(
-    BuildContext context, 
-    String title, 
-    String imagePath, 
-    Widget screen
+    BuildContext context,
+    String title,
+    String imagePath,
+    Widget screen,
   ) {
     return GestureDetector(
       onTap: () {
@@ -185,7 +232,11 @@ class PlayScreen extends StatelessWidget {
                   return Container(
                     color: Colors.grey.shade700,
                     child: const Center(
-                      child: Icon(Icons.broken_image, size: 60, color: Colors.grey),
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 60,
+                        color: Colors.grey,
+                      ),
                     ),
                   );
                 },
@@ -221,7 +272,9 @@ class PlayScreen extends StatelessWidget {
                       icon: const Icon(Icons.play_arrow, size: 18),
                       label: const Text("Start Now"),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFFCC00), // Accent color
+                        backgroundColor: const Color(
+                          0xFFFFCC00,
+                        ), // Accent color
                         foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -244,7 +297,7 @@ class PlayScreen extends StatelessWidget {
     String title,
     String imagePath,
     Widget screen,
-    IconData icon
+    IconData icon,
   ) {
     return GestureDetector(
       onTap: () {
@@ -255,7 +308,9 @@ class PlayScreen extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1F3E), // Solid background color for structure
+          color: const Color(
+            0xFF1C1F3E,
+          ), // Solid background color for structure
           borderRadius: BorderRadius.circular(16),
           boxShadow: const [
             BoxShadow(
@@ -272,7 +327,9 @@ class PlayScreen extends StatelessWidget {
             Expanded(
               flex: 3,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
                 child: Image.asset(
                   imagePath,
                   width: double.infinity,
@@ -281,7 +338,11 @@ class PlayScreen extends StatelessWidget {
                     return Container(
                       color: Colors.grey.shade700,
                       child: const Center(
-                        child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                        child: Icon(
+                          Icons.broken_image,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
                       ),
                     );
                   },
@@ -298,7 +359,9 @@ class PlayScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFCC00), // Accent icon background
+                        color: const Color(
+                          0xFFFFCC00,
+                        ), // Accent icon background
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(icon, color: Color(0xFF0D102C), size: 20),

@@ -24,7 +24,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
 
   final List<Widget> _teacherPages = const [
     ContentManagementView(),
-    ProgressTrackingView(),    // ← FIXED: Your full analytics UI is now connected
+    ProgressTrackingView(), // ← FIXED: Your full analytics UI is now connected
     CommunicationView(),
     ProfileView(),
   ];
@@ -65,9 +65,7 @@ class _TeacherScreenState extends State<TeacherScreen> {
             colors: [kDarkGradientStart, kDarkGradientEnd],
           ),
         ),
-        child: SafeArea(
-          child: _teacherPages[_selectedIndex],
-        ),
+        child: SafeArea(child: _teacherPages[_selectedIndex]),
       ),
 
       // bottom navigation

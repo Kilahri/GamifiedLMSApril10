@@ -1,29 +1,28 @@
 import 'package:flutter/material.dart';
 
+// Screen Imports
 import 'home_screen.dart';
 import 'play_screen.dart';
 import 'watch_screen.dart';
 import 'read_screen.dart';
-import 'analytics_screen.dart';
 import 'settings_screen.dart';
-
-// THESE TWO MUST EXIST
-import 'teacher_cms_page.dart' show TeacherCMSPage; 
+import 'teacher_cms_page.dart' show TeacherCMSPage;
+import 'teacher_content_management.dart' show TeacherContentManagementScreen;
 import 'progress_tracking_view.dart';
+import 'package:elearningapp_flutter/leaderboard/leaderboard.dart';
 
-
-
-// 🎨 Updated Constants for dark theme
-const Color kStudentColor = Color(0xFFFFC107);
-const Color kTeacherColor = Color(0xFF42A5F5);
+// 🎨 Theme Constants
+const Color kStudentColor = Color(0xFFFFC107); // Amber
+const Color kTeacherColor = Color(0xFF42A5F5); // Blue
 const Color kDarkGradientStart = Color(0xFF0D102C);
 const Color kDarkGradientEnd = Color(0xFF1E2152);
-const double kIconSize = 30.0;
-const double kSelectedFontSize = 14.0;
+const double kIconSize = 28.0;
 
 class RoleNavigation extends StatefulWidget {
   final String role;
-  const RoleNavigation({super.key, required this.role});
+  final String username;
+
+  const RoleNavigation({super.key, required this.role, required this.username});
 
   @override
   State<RoleNavigation> createState() => _RoleNavigationState();
@@ -32,112 +31,109 @@ class RoleNavigation extends StatefulWidget {
 class _RoleNavigationState extends State<RoleNavigation> {
   int _selectedIndex = 0;
 
+  // Helper to check role case-insensitively
+  bool get _isTeacherOrAdmin {
+    final r = widget.role.toLowerCase();
+    return r == 'teacher' || r == 'admin';
+  }
+
   late List<Widget> _pages;
-  late List<BottomNavigationBarItem> _studentTabs;
-  late List<BottomNavigationBarItem> _teacherAdminTabs;
 
   @override
   void initState() {
     super.initState();
-
-    // ALL POSSIBLE PAGES
     _pages = [
-      HomeScreen(role: widget.role),         // 0
-      PlayScreen(role: widget.role),         // 1
-      const WatchScreen(),                   // 2
-      const ReadScreen(),                    // 3
-      const AnalyticsScreen(),               // 4
-      const SettingsScreen(),                // 5
-      const TeacherCMSPage(),                // 6  → Teacher CMS
-      const ProgressTrackingView(),          // 7  → Separate Progress Tracking Page
-    ];
-
-    // STUDENT TABS
-    _studentTabs = const [
-      BottomNavigationBarItem(
-          icon: Icon(Icons.star_half_rounded, size: kIconSize),
-          label: "My Zone"),
-      BottomNavigationBarItem(
-          icon: Icon(Icons.sports_esports, size: kIconSize),
-          label: "Play Games"),
-      BottomNavigationBarItem(
-          icon: Icon(Icons.movie_filter_rounded, size: kIconSize),
-          label: "Watch"),
-      BottomNavigationBarItem(
-          icon: Icon(Icons.menu_book_rounded, size: kIconSize),
-          label: "Read Books"),
-      BottomNavigationBarItem(
-          icon: Icon(Icons.settings, size: kIconSize),
-          label: "Settings"),
-    ];
-
-    // TEACHER / ADMIN TABS (NO HOME, NO ANALYTICS PAGE)
-    _teacherAdminTabs = const [
-      BottomNavigationBarItem(
-        icon: Icon(Icons.menu_book, size: kIconSize),
-        label: "Content",
-      ),
-      BottomNavigationBarItem(
-        icon: Icon(Icons.analytics, size: kIconSize),
-        label: "Progress",
-      ),
-      BottomNavigationBarItem(
-        icon: Icon(Icons.chat_bubble_outline, size: kIconSize),
-        label: "Comments",
-      ),
-      BottomNavigationBarItem(
-        icon: Icon(Icons.person, size: kIconSize),
-        label: "Profile",
-      ),
+      HomeScreen(role: widget.role, username: widget.username), // 0
+      PlayScreen(role: widget.role, username: widget.username), // 1
+      const WatchScreen(), // 2
+      const ReadScreen(), // 3
+      UniversalOverallLeaderboardScreen(username: widget.username), // 4
+      SettingsScreen(currentUsername: widget.username), // 5
+      const TeacherCMSPage(), // 6
+      const ProgressTrackingView(), // 7
+      const TeacherContentManagementScreen(), // 8
     ];
   }
 
-  // NAVIGATION SWITCH
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  // STUDENT VS TEACHER NAVIGATION ITEMS
-  List<BottomNavigationBarItem> _getNavigationItems() {
-    return (widget.role == 'Teacher' || widget.role == 'Admin')
-        ? _teacherAdminTabs
-        : _studentTabs;
-  }
-
-  // MAP TABS TO PAGE INDEX
-  int _getPageMapIndex(int selectedIndex) {
-  if (widget.role == 'Teacher' || widget.role == 'Admin') {
-    // Teacher/Admin mapping (keep as is or fix if needed)
-    switch (selectedIndex) {
-      case 0: return 6; // Content → TeacherCMSPage
-      case 1: return 7; // Progress → ProgressTrackingView
-      case 2: return 6; // Communication still inside CMS
-      case 3: return 5; // Profile → Settings
-      default: return 6;
-    }
-  } else {
-    // Student mapping
-    switch (selectedIndex) {
-      case 0: return 0; // My Zone/Home
-      case 1: return 1; // Play
-      case 2: return 2; // Watch
-      case 3: return 3; // Read
-      case 4: return 5; // Settings → was 4/Analytics
-      default: return 0;
+  /// Maps the BottomNavBar index to the correct page in the [_pages] list
+  int _getPageMapIndex(int index) {
+    if (_isTeacherOrAdmin) {
+      switch (index) {
+        case 0:
+          return 8; // Content -> TeacherContentManagementScreen
+        case 1:
+          return 7; // Progress -> ProgressTrackingView
+        case 2:
+          return 6; // Comments (Placeholder for CMS communication)
+        case 3:
+          return 5; // Profile -> SettingsScreen
+        default:
+          return 8;
+      }
+    } else {
+      return index; // Students follow 0-5 mapping directly
     }
   }
-}
 
+  List<BottomNavigationBarItem> _getNavItems() {
+    if (_isTeacherOrAdmin) {
+      return const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.auto_stories, size: kIconSize),
+          label: "Content",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.analytics_rounded, size: kIconSize),
+          label: "Progress",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.forum_rounded, size: kIconSize),
+          label: "Messages",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.account_circle, size: kIconSize),
+          label: "Profile",
+        ),
+      ];
+    } else {
+      return const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.home_rounded, size: kIconSize),
+          label: "My Zone",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.sports_esports, size: kIconSize),
+          label: "Play",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.play_circle_fill, size: kIconSize),
+          label: "Watch",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.menu_book_rounded, size: kIconSize),
+          label: "Read",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.emoji_events, size: kIconSize),
+          label: "Rankings",
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.settings, size: kIconSize),
+          label: "Settings",
+        ),
+      ];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final navItems = _getNavigationItems();
-    final bool isStudent = !(widget.role == 'Teacher' || widget.role == 'Admin');
-
-    final Color selectedColor = isStudent ? kStudentColor : kTeacherColor;
-    final Color unselectedColor = selectedColor.withOpacity(0.6);
+    final Color themeColor = _isTeacherOrAdmin ? kTeacherColor : kStudentColor;
 
     return Scaffold(
       body: Container(
@@ -148,22 +144,28 @@ class _RoleNavigationState extends State<RoleNavigation> {
             end: Alignment.bottomCenter,
           ),
         ),
-        child: _pages[_getPageMapIndex(_selectedIndex)],
+        // Use an IndexedStack to keep page states alive when switching tabs
+        child: IndexedStack(
+          index: _getPageMapIndex(_selectedIndex),
+          children: _pages,
+        ),
       ),
-
-      // 🔥 FIXED — NO ERRORS
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: selectedColor,
-        unselectedItemColor: unselectedColor,
-        selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.bold, fontSize: kSelectedFontSize),
-        unselectedLabelStyle: const TextStyle(fontSize: 12.0),
-        backgroundColor: kDarkGradientEnd,
-        elevation: 10,
-        items: navItems,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: themeColor.withOpacity(0.2), width: 0.5),
+          ),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          onTap: _onItemTapped,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: kDarkGradientEnd,
+          selectedItemColor: themeColor,
+          unselectedItemColor: Colors.white38,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          items: _getNavItems(),
+        ),
       ),
     );
   }

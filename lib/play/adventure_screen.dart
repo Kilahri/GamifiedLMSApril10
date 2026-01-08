@@ -3,7 +3,6 @@ import 'package:elearningapp_flutter/game/biologyForest.dart';
 import 'package:elearningapp_flutter/game/skyRealm.dart';
 import 'package:elearningapp_flutter/game/adventureGame.dart';
 
-
 class AdventureScreen extends StatelessWidget {
   final String role;
   const AdventureScreen({super.key, required this.role});
@@ -51,22 +50,22 @@ class AdventureScreen extends StatelessWidget {
                       );
                     },
                   ),
-                 
 
-
-_AdventureTile(
-  title: "🌿 Biome Builder",
-  subtitle: "Restore life across diverse biomes",
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BiomeBuilderGame(role: role), // Pass the role!
-      ),
-    );
-  },
-),
-
+                  _AdventureTile(
+                    title: "🌿 Biome Builder",
+                    subtitle: "Restore life across diverse biomes",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => PhotosynthesisFactory(
+                                role: role,
+                              ), // Pass the role!
+                        ),
+                      );
+                    },
+                  ),
 
                   _AdventureTile(
                     title: "🔭 Astronomy Sky Realm",
@@ -75,7 +74,8 @@ _AdventureTile(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const AstronomySkyRealm(),
+                          builder:
+                              (_) => AstronomySkyRealm(role: role), // ✅ Fixed!
                         ),
                       );
                     },

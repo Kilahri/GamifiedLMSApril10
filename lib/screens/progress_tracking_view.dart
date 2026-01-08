@@ -81,7 +81,11 @@ class ProgressTrackingView extends StatelessWidget {
   }
 
   /// 🔹 Student Performance List
-  Widget _buildRosterList(Color cardColor, Color accentColor, Color warningColor) {
+  Widget _buildRosterList(
+    Color cardColor,
+    Color accentColor,
+    Color warningColor,
+  ) {
     final List<Map<String, dynamic>> students = [
       {'name': 'Alice Johnson', 'avg': 92, 'alerts': 0},
       {'name': 'Ben Carter', 'avg': 68, 'alerts': 2},
@@ -102,7 +106,10 @@ class ProgressTrackingView extends StatelessWidget {
           final scoreColor = student['avg'] > 75 ? accentColor : warningColor;
 
           return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
 
             leading: CircleAvatar(
               backgroundColor: scoreColor.withOpacity(0.2),
@@ -125,15 +132,17 @@ class ProgressTrackingView extends StatelessWidget {
 
             subtitle: Text(
               'Avg. Score: ${student['avg']}%',
-              style: TextStyle(
-                color: scoreColor,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: scoreColor, fontWeight: FontWeight.bold),
             ),
 
-            trailing: student['alerts'] > 0
-                ? Icon(Icons.error, color: warningColor, size: 20)
-                : const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+            trailing:
+                student['alerts'] > 0
+                    ? Icon(Icons.error, color: warningColor, size: 20)
+                    : const Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
 
             onTap: () {
               // TODO: Add "View Full Student Report" page

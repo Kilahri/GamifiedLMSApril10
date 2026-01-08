@@ -23,6 +23,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   flame_forge2d: ^0.19.0+4
   confetti: ^0.7.0
+  firebase_core: ^2.32.0
+  firebase_auth: ^4.15.3
+  cloud_firestore: ^4.13.6
+  firebase_storage: ^11.5.6
+  # cloud_firestore: ^4.13.6
+   #firebase_core: ^2.24.2
+  audioplayers: ^6.5.1
 
 dev_dependencies:
   flutter_test:
@@ -51,3 +58,29 @@ flutter:
     - lib/assets/earthAndSpace.jpg
     - lib/assets/chemistry.jpg
     - lib/assets/BeautifulSpace.jpg
+    - lib/assets/statesofmatter.jpg
+    - lib/assets/earthScience.png
+    - lib/assets/plantScience.jpg
+    
+    - lib/assets/videos/theWaterCycle.mp4
+    - lib/assets/videos/planetSolarSystem.mp4
+    - lib/assets/videos/photosynthesis.mp4
+    - lib/assets/videos/statesOfMatter.mp4
+    - lib/assets/videos/foodChain.mp4
+
+    - lib/assets/avatars/b1.jpg
+    - lib/assets/avatars/b2.jpg
+    - lib/assets/avatars/b3.jpg
+    - lib/assets/avatars/b4.jpg
+    - lib/assets/avatars/b5.jpg
+    - lib/assets/avatars/g1.jpg
+    - lib/assets/avatars/g2.jpg
+    - lib/assets/avatars/g3.jpg
+    - lib/assets/avatars/g4.jpg
+    - lib/assets/avatars/g5.jpg
+    
+    - lib/assets/audio/quiz.mp3
+    - lib/assets/audio/puzzle.mp3
+    - lib/assets/audio/word_connect.mp3
+    - lib/assets/audio/matchingGame.mp3
+

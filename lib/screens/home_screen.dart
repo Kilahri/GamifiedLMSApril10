@@ -1,66 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
-
-// 1. Define SettingsScreenPlaceholder for correct navigation (based on user request)
-class SettingsScreenPlaceholder extends StatelessWidget {
-  const SettingsScreenPlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("SETTINGS", style: TextStyle(color: Colors.white)), backgroundColor: const Color(0xFF415A77)),
-      backgroundColor: const Color(0xFF0D1B2A),
-      body: const Center(child: Text("This is the Settings Screen.", style: TextStyle(color: Colors.white70, fontSize: 18))),
-    );
-  }
-}
-
-// --- Placeholder Screens (Assuming these will be separate files later) ---
-class PlayScreenPlaceholder extends StatelessWidget {
-  const PlayScreenPlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("PLAY: Games & Quizzes", style: TextStyle(color: Colors.white)), backgroundColor: Colors.deepPurple),
-      backgroundColor: const Color(0xFF0D102C),
-      body: const Center(child: Text("Welcome to the Play Zone!", style: TextStyle(color: Colors.white70, fontSize: 18))),
-    );
-  }
-}
-
-class WatchScreenPlaceholder extends StatelessWidget {
-  const WatchScreenPlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("WATCH: Science Videos", style: TextStyle(color: Colors.white)), backgroundColor: Colors.teal),
-      backgroundColor: const Color(0xFF0D102C),
-      body: const Center(child: Text("Welcome to the Video Library!", style: TextStyle(color: Colors.white70, fontSize: 18))),
-    );
-  }
-}
-
-class ReadScreenPlaceholder extends StatelessWidget {
-  const ReadScreenPlaceholder({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("READ: Articles & Books", style: TextStyle(color: Colors.white)), backgroundColor: Colors.orange),
-      backgroundColor: const Color(0xFF0D102C),
-      body: const Center(child: Text("Welcome to the Reading Section!", style: TextStyle(color: Colors.white70, fontSize: 18))),
-    );
-  }
-}
-// ---------------------------------------------------------------------
+import 'play_screen.dart';
+import 'watch_screen.dart';
+import 'read_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   final String role;
-  const HomeScreen({super.key, required this.role});
+  final String username;
+
+  const HomeScreen({super.key, required this.role, required this.username});
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 
+    if (!context.mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -70,7 +26,6 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Gradient background
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -81,144 +36,123 @@ class HomeScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 10.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 🚀 FIXED & ENHANCED: Top Branded Header with Settings Button
-                _buildHeader(context, role),
+                // Top Header with App Name and Settings
+                _buildHeader(context),
 
                 const SizedBox(height: 12),
 
-                // Header Banner
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF7B4DFF), Color(0xFF5B36C9)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
-                      )
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              "Explore Science",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              "Play • Watch • Read\nLearn and enjoy everyday!",
-                              style: TextStyle(fontSize: 14, color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Image.asset("lib/assets/owl.png", height: 100, width: 100),
-                    ],
-                  ),
-                ),
+                // Hero Banner
+                _buildHeroBanner(),
 
                 const SizedBox(height: 30),
 
-                // Activities Section Title
+                // Activities Section
                 _sectionTitle("Activities", "View all"),
                 const SizedBox(height: 12),
-
-                // Activities List (Functional)
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      // FUNCTIONAL: Navigate to PlayScreenPlaceholder
                       _activityCard(
                         title: "PLAY",
                         subtitle: "Games & Quizzes",
                         color: Colors.deepPurple,
                         imagePath: "lib/assets/play.png",
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (ctx) => const PlayScreenPlaceholder()));
-                        },
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (ctx) => PlayScreen(
+                                      role: role,
+                                      username: username,
+                                    ),
+                              ),
+                            ),
                       ),
                       const SizedBox(width: 12),
-                      // FUNCTIONAL: Navigate to WatchScreenPlaceholder
                       _activityCard(
                         title: "WATCH",
                         subtitle: "Science Videos",
                         color: Colors.teal,
                         imagePath: "lib/assets/video.png",
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (ctx) => const WatchScreenPlaceholder()));
-                        },
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (ctx) => const WatchScreen(),
+                              ),
+                            ),
                       ),
                       const SizedBox(width: 12),
-                      // FUNCTIONAL: Navigate to ReadScreenPlaceholder
                       _activityCard(
                         title: "READ",
                         subtitle: "Articles & Books",
                         color: Colors.orange,
                         imagePath: "lib/assets/popularRead.png",
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (ctx) => const ReadScreenPlaceholder()));
-                        },
+                        onTap:
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (ctx) => const ReadScreen(),
+                              ),
+                            ),
                       ),
-                      const SizedBox(width: 12),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 30),
 
-                // Popular Section Title
+                // Popular Section
                 _sectionTitle("Popular", "View all"),
                 const SizedBox(height: 16),
 
-                // Popular Items (Functional)
-                // FUNCTIONAL: Navigate to PlayScreenPlaceholder
                 _popularItem(
                   title: "Puzzle, Matching Game, Quizzes and more",
                   tag: "GAMES",
                   color: Colors.deepPurple,
                   imagePath: "lib/assets/popularPlay.png",
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (ctx) => const PlayScreenPlaceholder()));
-                  },
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (ctx) =>
+                                  PlayScreen(role: role, username: username),
+                        ),
+                      ),
                 ),
-                // FUNCTIONAL: Navigate to WatchScreenPlaceholder
                 _popularItem(
                   title: "Science Videos - Earth, Space and Life",
                   tag: "VIDEOS",
                   color: Colors.teal,
                   imagePath: "lib/assets/video.png",
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (ctx) => const WatchScreenPlaceholder()));
-                  },
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (ctx) => const WatchScreen(),
+                        ),
+                      ),
                 ),
-                // FUNCTIONAL: Navigate to ReadScreenPlaceholder
                 _popularItem(
                   title: "Science Books & Articles",
                   tag: "READ",
                   color: Colors.orange,
                   imagePath: "lib/assets/popularRead.png",
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (ctx) => const ReadScreenPlaceholder()));
-                  },
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (ctx) => const ReadScreen()),
+                      ),
                 ),
               ],
             ),
@@ -228,17 +162,15 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // --- Helper Widgets for UI structure ---
+  // --- UI Components ---
 
-  // FIXED: Added the Settings IconButton and logic
-  Widget _buildHeader(BuildContext context, String role) {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // SciLearn App Name
             Row(
               children: const [
                 Icon(Icons.science, color: Color(0xFFFFC107), size: 28),
@@ -254,23 +186,23 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Settings Button (FIXED NAVIGATION)
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white70, size: 24),
               onPressed: () {
-                // This is the line that was fixed to navigate to the correct screen.
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreenPlaceholder()),
+                  MaterialPageRoute(
+                    builder:
+                        (context) => SettingsScreen(
+                          currentUsername: username, // ✅ FIX: Pass the username
+                        ),
+                  ),
                 );
               },
             ),
           ],
         ),
         const SizedBox(height: 10),
-
-        // Welcome Message (moved from banner)
         Text(
           "Welcome $role 👋",
           style: const TextStyle(
@@ -280,6 +212,60 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildHeroBanner() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7B4DFF), Color(0xFF5B36C9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Explore Science",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Play • Watch • Read\nLearn and enjoy everyday!",
+                  style: TextStyle(fontSize: 14, color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+          // Removed Icons.school error placeholder
+          Image.asset(
+            "lib/assets/owl.png",
+            height: 100,
+            width: 100,
+            errorBuilder:
+                (context, error, stackTrace) =>
+                    const SizedBox.shrink(), // Displays nothing if image fails
+          ),
+        ],
+      ),
     );
   }
 
@@ -296,9 +282,7 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: () {
-            // Placeholder for View All functionality
-          },
+          onPressed: () {},
           child: Text(
             viewAllText,
             style: const TextStyle(color: Colors.white70, fontSize: 14),
@@ -308,8 +292,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Activity Card (Updated)
-  static Widget _activityCard({
+  Widget _activityCard({
     required String title,
     required String subtitle,
     required Color color,
@@ -319,25 +302,24 @@ class HomeScreen extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 160, // Adjusted width
-        height: 120, // Adjusted height
+        width: 160,
+        height: 120,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.8), // Solid color for depth
+          color: color.withOpacity(0.8),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.5),
               blurRadius: 10,
               offset: const Offset(0, 5),
-            )
+            ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Section (Title)
             Text(
               title,
               style: const TextStyle(
@@ -346,8 +328,6 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            
-            // Bottom Section (Subtitle and Image)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -360,14 +340,13 @@ class HomeScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    imagePath,
-                    height: 40,
-                    width: 40,
-                    fit: BoxFit.contain,
-                  ),
+                Image.asset(
+                  imagePath,
+                  height: 40,
+                  width: 40,
+                  errorBuilder:
+                      (ctx, err, stack) =>
+                          const Icon(Icons.broken_image, color: Colors.white),
                 ),
               ],
             ),
@@ -377,56 +356,51 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Popular Item (Updated to be functional)
-  static Widget _popularItem({
+  Widget _popularItem({
     required String title,
     required String tag,
     required Color color,
     required String imagePath,
-    required VoidCallback onTap, // ADDED for functionality
+    required VoidCallback onTap,
   }) {
     return GestureDetector(
-      onTap: onTap, // Making the item clickable
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFF1C1F3E), // Consistent background color
+          color: const Color(0xFF1C1F3E),
           border: Border.all(color: color.withOpacity(0.5), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.2),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            )
-          ],
         ),
         child: Row(
           children: [
-            // Left Image
             Container(
               height: 80,
               width: 80,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.only(
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(16),
                   bottomLeft: Radius.circular(16),
                 ),
-                color: Colors.white,
+                color: Colors.white10,
               ),
               child: ClipRRect(
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(16),
                   bottomLeft: Radius.circular(16),
                 ),
-                child: Image.asset(imagePath, fit: BoxFit.cover),
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder:
+                      (ctx, err, stack) =>
+                          const Icon(Icons.image, color: Colors.white),
+                ),
               ),
             ),
-
-            // Middle Text
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Text(
                   title,
                   style: const TextStyle(
@@ -435,12 +409,9 @@ class HomeScreen extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
-
-            // Right Tag + Play Button
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
@@ -451,18 +422,21 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     tag,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.play_circle_fill, color: Colors.white, size: 30),
+                  const Icon(
+                    Icons.play_circle_fill,
+                    color: Colors.white,
+                    size: 30,
+                  ),
                 ],
               ),
             ),
