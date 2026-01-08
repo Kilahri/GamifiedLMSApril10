@@ -11,6 +11,7 @@ import 'package:elearningapp_flutter/data/video_data.dart'
 /// - Read (Books) - including default books from read_screen
 /// - Watch (Videos/Lessons) - including default videos from video_data
 /// - Play (Games) - including default quiz topics from quiz_screen
+/// - Messages - View messages from students sent via Contact Support
 class TeacherContentManagementScreen extends StatefulWidget {
   const TeacherContentManagementScreen({super.key});
 
@@ -27,7 +28,7 @@ class _TeacherContentManagementScreenState
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -56,10 +57,12 @@ class _TeacherContentManagementScreenState
           indicatorColor: const Color(0xFF7B4DFF),
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white54,
+          isScrollable: true,
           tabs: const [
             Tab(icon: Icon(Icons.menu_book), text: "Read"),
             Tab(icon: Icon(Icons.play_circle), text: "Watch"),
             Tab(icon: Icon(Icons.sports_esports), text: "Play"),
+            Tab(icon: Icon(Icons.message), text: "Messages"),
           ],
         ),
       ),
@@ -69,8 +72,420 @@ class _TeacherContentManagementScreenState
           ReadContentManagement(),
           WatchContentManagement(),
           PlayContentManagement(),
+          TeacherMessagesTab(),
         ],
       ),
+    );
+  }
+}
+
+// ============================================================================
+// TEACHER MESSAGES TAB
+// ============================================================================
+
+class TeacherMessagesTab extends StatefulWidget {
+  const TeacherMessagesTab({super.key});
+
+  @override
+  State<TeacherMessagesTab> createState() => _TeacherMessagesTabState();
+}
+
+class _TeacherMessagesTabState extends State<TeacherMessagesTab> {
+  List<Map<String, dynamic>> _messages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  Future<void> _loadMessages() async {
+    setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    String? messagesJson = prefs.getString('admin_messages');
+
+    if (messagesJson != null) {
+      List<dynamic> decoded = jsonDecode(messagesJson);
+      List<Map<String, dynamic>> allMessages =
+          decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+
+      // Filter to show only messages sent to "Teacher"
+      _messages = allMessages.where((m) => m['to'] == 'Teacher').toList();
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _saveMessages(List<Map<String, dynamic>> allMessages) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('admin_messages', jsonEncode(allMessages));
+  }
+
+  void _markMessageAsRead(Map<String, dynamic> message) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? messagesJson = prefs.getString('admin_messages');
+
+    if (messagesJson != null) {
+      List<dynamic> decoded = jsonDecode(messagesJson);
+      List<Map<String, dynamic>> allMessages =
+          decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+
+      // Find and update the message
+      int index = allMessages.indexWhere((m) => m['id'] == message['id']);
+      if (index != -1) {
+        allMessages[index]['isRead'] = true;
+        await _saveMessages(allMessages);
+        setState(() {
+          message['isRead'] = true;
+        });
+      }
+    }
+  }
+
+  void _deleteMessage(Map<String, dynamic> message) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1F3E),
+        title: const Text(
+          'Delete Message',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this message?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              String? messagesJson = prefs.getString('admin_messages');
+
+              if (messagesJson != null) {
+                List<dynamic> decoded = jsonDecode(messagesJson);
+                List<Map<String, dynamic>> allMessages =
+                    decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+
+                allMessages.removeWhere((m) => m['id'] == message['id']);
+                await _saveMessages(allMessages);
+
+                setState(() {
+                  _messages.remove(message);
+                });
+              }
+
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Message deleted'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _viewMessageDetails(Map<String, dynamic> message) {
+    _markMessageAsRead(message);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1F3E),
+        title: Row(
+          children: [
+            const Icon(Icons.person, color: Color(0xFF7B4DFF)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message['subject'] ?? 'No Subject',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow(Icons.person, 'From', '@${message['from']}'),
+              const SizedBox(height: 12),
+              _buildDetailRow(
+                Icons.access_time,
+                'Sent',
+                _formatTimestamp(message['timestamp']),
+              ),
+              const Divider(color: Colors.white24, height: 24),
+              const Text(
+                'Message:',
+                style: TextStyle(
+                  color: Color(0xFF7B4DFF),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message['message'] ?? '',
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF7B4DFF), size: 18),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatTimestamp(String timestamp) {
+    try {
+      final date = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inMinutes < 60) {
+        return '${difference.inMinutes}m ago';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays}d ago';
+      } else {
+        return '${date.day}/${date.month}/${date.year}';
+      }
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF7B4DFF)),
+      );
+    }
+
+    final unreadCount = _messages.where((m) => !(m['isRead'] ?? false)).length;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Student Messages (${_messages.length})',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Text(
+                      '$unreadCount unread',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                onPressed: () {
+                  _loadMessages();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Messages refreshed'),
+                      backgroundColor: Color(0xFF7B4DFF),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+                tooltip: 'Refresh',
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _messages.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inbox, size: 80, color: Colors.white24),
+                      SizedBox(height: 16),
+                      Text(
+                        'No messages yet',
+                        style: TextStyle(color: Colors.white54, fontSize: 18),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Messages from students will appear here',
+                        style: TextStyle(color: Colors.white38, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: _messages.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemBuilder: (context, index) {
+                    final message = _messages[index];
+                    final isRead = message['isRead'] ?? false;
+
+                    return Card(
+                      color: const Color(0xFF1C1F3E),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        leading: Stack(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor:
+                                  isRead ? Colors.grey : const Color(0xFF7B4DFF),
+                              child: const Icon(
+                                Icons.person,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (!isRead)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        title: Text(
+                          message['subject'] ?? 'No Subject',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight:
+                                isRead ? FontWeight.normal : FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'From: @${message['from']}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              _formatTimestamp(message['timestamp']),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                        trailing: PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, color: Colors.white),
+                          color: const Color(0xFF2A1B4A),
+                          onSelected: (value) {
+                            if (value == 'view') {
+                              _viewMessageDetails(message);
+                            } else if (value == 'delete') {
+                              _deleteMessage(message);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'view',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.visibility,
+                                    color: Colors.white70,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'View',
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, color: Colors.red, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        onTap: () => _viewMessageDetails(message),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -176,7 +591,6 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
       }
     }
 
-    // Check for deleted default books
     String? deletedJson = prefs.getString('deleted_default_books');
     List<String> deletedIds = [];
     if (deletedJson != null) {
@@ -187,7 +601,6 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
       }
     }
 
-    // Filter out deleted books
     defaultBooks =
         defaultBooks.where((book) => !deletedIds.contains(book['id'])).toList();
 
@@ -321,16 +734,66 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
                     ),
                     style: const TextStyle(color: Colors.white),
                   ),
-                  TextField(
-                    controller: imageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Image Path',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF4CAF50).withOpacity(0.3),
                       ),
                     ),
-                    style: const TextStyle(color: Colors.white),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.image,
+                              color: Color(0xFF4CAF50),
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Book Cover Image',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: imageController,
+                          decoration: const InputDecoration(
+                            hintText: 'Enter image URL or file path',
+                            hintStyle: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Examples:\n• https://example.com/cover.jpg\n• lib/assets/images/book_cover.png',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -349,6 +812,16 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please enter a book title'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (imageController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter an image URL or path'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -430,7 +903,6 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
                     allBooks.removeAt(index);
                   });
 
-                  // If it's a default book, mark it as deleted
                   if (isDefault) {
                     final prefs = await SharedPreferences.getInstance();
                     String? deletedJson = prefs.getString(
@@ -1782,7 +2254,6 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
       }
     }
 
-    // Check for deleted default videos
     String? deletedJson = prefs.getString('deleted_default_videos');
     List<String> deletedIds = [];
     if (deletedJson != null) {
@@ -1793,7 +2264,6 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
       }
     }
 
-    // Filter out deleted videos
     defaultVideos =
         defaultVideos
             .where((video) => !deletedIds.contains(video['id']))
@@ -1897,17 +2367,69 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                     ),
                     style: const TextStyle(color: Colors.white),
                   ),
-                  TextField(
-                    controller: videoUrlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Video URL (asset path or network URL)',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7B4DFF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF7B4DFF).withOpacity(0.3),
                       ),
                     ),
-                    style: const TextStyle(color: Colors.white),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.video_library,
+                              color: Color(0xFF7B4DFF),
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Video Source',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: videoUrlController,
+                          decoration: const InputDecoration(
+                            hintText:
+                                'Enter YouTube URL, video URL, or file path',
+                            hintStyle: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Examples:\n• https://www.youtube.com/watch?v=...\n• https://example.com/video.mp4\n• lib/assets/videos/science.mp4',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: durationController,
                     decoration: const InputDecoration(
@@ -1948,6 +2470,16 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please enter a video title'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (videoUrlController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a video URL or path'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -2032,7 +2564,6 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                     allVideos.removeAt(index);
                   });
 
-                  // If it's a default video, mark it as deleted
                   if (isDefault) {
                     final prefs = await SharedPreferences.getInstance();
                     String? deletedJson = prefs.getString(
@@ -2419,7 +2950,6 @@ class _PlayContentManagementState extends State<PlayContentManagement>
       }
     }
 
-    // Check for deleted default quiz topics
     String? deletedJson = prefs.getString('deleted_quiz_topics');
     List<String> deletedIds = [];
     if (deletedJson != null) {
@@ -2430,7 +2960,6 @@ class _PlayContentManagementState extends State<PlayContentManagement>
       }
     }
 
-    // Filter out deleted topics
     defaultTopics =
         defaultTopics
             .where((topic) => !deletedIds.contains(topic['id']))
@@ -2546,16 +3075,66 @@ class _PlayContentManagementState extends State<PlayContentManagement>
                     ),
                     style: const TextStyle(color: Colors.white),
                   ),
-                  TextField(
-                    controller: imageController,
-                    decoration: const InputDecoration(
-                      labelText: 'Image Path',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF6B9D).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFFF6B9D).withOpacity(0.3),
                       ),
                     ),
-                    style: const TextStyle(color: Colors.white),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.image,
+                              color: Color(0xFFFF6B9D),
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Game Image',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: imageController,
+                          decoration: const InputDecoration(
+                            hintText: 'Enter image URL or file path',
+                            hintStyle: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Examples:\n• https://example.com/game.png\n• lib/assets/images/play.png',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -2574,6 +3153,16 @@ class _PlayContentManagementState extends State<PlayContentManagement>
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Please enter a game title'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (imageController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter an image URL or path'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -2812,7 +3401,6 @@ class _PlayContentManagementState extends State<PlayContentManagement>
                     allQuizTopics.removeAt(index);
                   });
 
-                  // If it's a default topic, mark it as deleted
                   if (isDefault) {
                     final prefs = await SharedPreferences.getInstance();
                     String? deletedJson = prefs.getString(
