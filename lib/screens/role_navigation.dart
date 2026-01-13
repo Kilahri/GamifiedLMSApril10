@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'play_screen.dart';
 import 'watch_screen.dart';
+import 'package:elearningapp_flutter/screens/lesson_video_selection.dart'; // NEW IMPORT
 import 'read_screen.dart';
 import 'settings_screen.dart';
 import 'teacher_cms_page.dart' show TeacherCMSPage;
-import 'teacher_content_management.dart' show TeacherContentManagementScreen;
+import 'teacher_content_management.dart'
+    show TeacherContentManagementScreen, TeacherMessagesScreen;
 import 'progress_tracking_view.dart';
 import 'package:elearningapp_flutter/leaderboard/leaderboard.dart';
+import 'package:elearningapp_flutter/screens/teacher/teacher_settings_screen.dart';
 
 // 🎨 Theme Constants
 const Color kStudentColor = Color(0xFFFFC107); // Amber
@@ -45,13 +48,15 @@ class _RoleNavigationState extends State<RoleNavigation> {
     _pages = [
       HomeScreen(role: widget.role, username: widget.username), // 0
       PlayScreen(role: widget.role, username: widget.username), // 1
-      const WatchScreen(), // 2
+      const LessonSelectionScreen(), // 2 - CHANGED from WatchScreen to LessonSelectionScreen
       const ReadScreen(), // 3
       UniversalOverallLeaderboardScreen(username: widget.username), // 4
       SettingsScreen(currentUsername: widget.username), // 5
       const TeacherCMSPage(), // 6
       const ProgressTrackingView(), // 7
       const TeacherContentManagementScreen(), // 8
+      const TeacherMessagesScreen(), // 9
+      TeacherSettingsScreen(currentUsername: widget.username), // 10
     ];
   }
 
@@ -68,11 +73,9 @@ class _RoleNavigationState extends State<RoleNavigation> {
         case 0:
           return 8; // Content -> TeacherContentManagementScreen
         case 1:
-          return 7; // Progress -> ProgressTrackingView
+          return 9; // Messages -> TeacherMessagesScreen
         case 2:
-          return 6; // Comments (Placeholder for CMS communication)
-        case 3:
-          return 5; // Profile -> SettingsScreen
+          return 10; // Profile -> TeacherSettingsScreen
         default:
           return 8;
       }
@@ -89,16 +92,12 @@ class _RoleNavigationState extends State<RoleNavigation> {
           label: "Content",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.analytics_rounded, size: kIconSize),
-          label: "Progress",
-        ),
-        BottomNavigationBarItem(
           icon: Icon(Icons.forum_rounded, size: kIconSize),
           label: "Messages",
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.account_circle, size: kIconSize),
-          label: "Profile",
+          icon: Icon(Icons.settings, size: kIconSize),
+          label: "Settings",
         ),
       ];
     } else {

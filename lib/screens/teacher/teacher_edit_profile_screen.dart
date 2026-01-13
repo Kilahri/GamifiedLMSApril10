@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Theme Colors
@@ -11,30 +10,26 @@ const Color kHighlightColor = Color(0xFF98C1D9);
 const double kLargeFontSize = 16.0;
 const double kSpacing = 18.0;
 
-class EditProfileScreen extends StatefulWidget {
+class TeacherEditProfileScreen extends StatefulWidget {
   final String currentUsername;
 
-  const EditProfileScreen({super.key, required this.currentUsername});
+  const TeacherEditProfileScreen({super.key, required this.currentUsername});
 
   @override
-  State<EditProfileScreen> createState() => _EditProfileScreenState();
+  State<TeacherEditProfileScreen> createState() =>
+      _TeacherEditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _displayNameController = TextEditingController();
-  final TextEditingController _studentIdController = TextEditingController();
-  final TextEditingController _parentContactController =
-      TextEditingController();
-
-  String? selectedSection;
-  final List<String> sections = ["Section A", "Section B", "Section C"];
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _departmentController = TextEditingController();
 
   bool _isLoading = true;
   bool _obscurePassword = true;
-  String userRole = "student";
 
   @override
   void initState() {
@@ -47,9 +42,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _displayNameController.dispose();
-    _studentIdController.dispose();
-    _parentContactController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _departmentController.dispose();
     super.dispose();
   }
 
@@ -57,35 +52,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
 
     setState(() {
-      userRole = prefs.getString("role") ?? "student";
       _usernameController.text = widget.currentUsername;
       _passwordController.text = prefs.getString("password") ?? "";
 
-      // Load role-specific full name
-      if (userRole == "teacher") {
-        _nameController.text =
-            prefs.getString("teacher_name_${widget.currentUsername}") ??
-            prefs.getString("name") ??
-            "";
-      } else {
-        _nameController.text =
-            prefs.getString("student_name_${widget.currentUsername}") ??
-            prefs.getString("name") ??
-            "";
-      }
+      // Load teacher-specific full name
+      _nameController.text =
+          prefs.getString("teacher_name_${widget.currentUsername}") ??
+          prefs.getString("name") ??
+          "";
 
-      // Load display name
-      String? displayName = prefs.getString(
-        "display_name_${widget.currentUsername}",
-      );
-      _displayNameController.text = displayName ?? widget.currentUsername;
-
-      // Load student-specific data
-      if (userRole == "student") {
-        selectedSection = prefs.getString("section");
-        _studentIdController.text = prefs.getString("studentId") ?? "";
-        _parentContactController.text = prefs.getString("parentContact") ?? "";
-      }
+      // Load additional teacher info
+      _emailController.text =
+          prefs.getString("teacher_email_${widget.currentUsername}") ?? "";
+      _phoneController.text =
+          prefs.getString("teacher_phone_${widget.currentUsername}") ?? "";
+      _departmentController.text =
+          prefs.getString("teacher_department_${widget.currentUsername}") ?? "";
 
       _isLoading = false;
     });
@@ -101,74 +83,60 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
 
-    if (userRole == "student" && selectedSection == null) {
-      _showErrorDialog("Please select your Section.");
-      return;
-    }
-
     String newUsername = _usernameController.text.trim();
     bool usernameChanged = newUsername != widget.currentUsername;
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Save display name
+    // Save teacher-specific full name
     if (usernameChanged) {
-      await prefs.remove("display_name_${widget.currentUsername}");
+      await prefs.remove("teacher_name_${widget.currentUsername}");
       await prefs.setString(
-        "display_name_$newUsername",
-        _displayNameController.text.trim(),
+        "teacher_name_$newUsername",
+        _nameController.text.trim(),
       );
-    } else {
-      await prefs.setString(
-        "display_name_${widget.currentUsername}",
-        _displayNameController.text.trim(),
-      );
-    }
 
-    // Save role-specific full name
-    if (userRole == "teacher") {
-      if (usernameChanged) {
-        await prefs.remove("teacher_name_${widget.currentUsername}");
-        await prefs.setString(
-          "teacher_name_$newUsername",
-          _nameController.text.trim(),
-        );
-      } else {
-        await prefs.setString(
-          "teacher_name_${widget.currentUsername}",
-          _nameController.text.trim(),
-        );
-      }
+      // Migrate additional info
+      await prefs.remove("teacher_email_${widget.currentUsername}");
+      await prefs.remove("teacher_phone_${widget.currentUsername}");
+      await prefs.remove("teacher_department_${widget.currentUsername}");
+
+      await prefs.setString(
+        "teacher_email_$newUsername",
+        _emailController.text.trim(),
+      );
+      await prefs.setString(
+        "teacher_phone_$newUsername",
+        _phoneController.text.trim(),
+      );
+      await prefs.setString(
+        "teacher_department_$newUsername",
+        _departmentController.text.trim(),
+      );
     } else {
-      if (usernameChanged) {
-        await prefs.remove("student_name_${widget.currentUsername}");
-        await prefs.setString(
-          "student_name_$newUsername",
-          _nameController.text.trim(),
-        );
-      } else {
-        await prefs.setString(
-          "student_name_${widget.currentUsername}",
-          _nameController.text.trim(),
-        );
-      }
+      await prefs.setString(
+        "teacher_name_${widget.currentUsername}",
+        _nameController.text.trim(),
+      );
+      await prefs.setString(
+        "teacher_email_${widget.currentUsername}",
+        _emailController.text.trim(),
+      );
+      await prefs.setString(
+        "teacher_phone_${widget.currentUsername}",
+        _phoneController.text.trim(),
+      );
+      await prefs.setString(
+        "teacher_department_${widget.currentUsername}",
+        _departmentController.text.trim(),
+      );
     }
 
     // Save common data
     await prefs.setString("name", _nameController.text.trim());
     await prefs.setString("username", newUsername);
     await prefs.setString("password", _passwordController.text);
-    await prefs.setString("role", userRole);
-
-    // Save student-specific data
-    if (userRole == "student") {
-      await prefs.setString("section", selectedSection!);
-      await prefs.setString("studentId", _studentIdController.text.trim());
-      await prefs.setString(
-        "parentContact",
-        _parentContactController.text.trim(),
-      );
-    }
+    await prefs.setString("role", "teacher");
 
     if (!mounted) return;
 
@@ -225,7 +193,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required IconData icon,
     bool obscure = false,
     TextInputType type = TextInputType.text,
-    List<TextInputFormatter>? formatter,
     String? hint,
     bool required = false,
     Widget? suffixIcon,
@@ -255,73 +222,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           controller: controller,
           obscureText: obscure,
           keyboardType: type,
-          inputFormatters: formatter,
           style: const TextStyle(color: Colors.white, fontSize: kLargeFontSize),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.white38),
             prefixIcon: Icon(icon, color: kAccentColor),
             suffixIcon: suffixIcon,
-            filled: true,
-            fillColor: kCardColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: kAccentColor.withOpacity(0.3)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: kAccentColor.withOpacity(0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: kHighlightColor, width: 2),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdown({
-    required String label,
-    required IconData icon,
-    required String? value,
-    required List<String> items,
-    required Function(String?) onChanged,
-    bool required = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: kHighlightColor,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (required)
-              const Text(
-                " *",
-                style: TextStyle(color: Colors.redAccent, fontSize: 14),
-              ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: value,
-          onChanged: onChanged,
-          dropdownColor: kCardColor,
-          style: const TextStyle(color: Colors.white, fontSize: kLargeFontSize),
-          items:
-              items
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: kAccentColor),
             filled: true,
             fillColor: kCardColor,
             border: OutlineInputBorder(
@@ -411,7 +317,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                     child: const Icon(
-                      Icons.person,
+                      Icons.school,
                       size: 50,
                       color: Colors.white,
                     ),
@@ -438,7 +344,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                userRole == "teacher" ? "Teacher Account" : "Student Account",
+                "Teacher Account",
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.6),
                   fontSize: 14,
@@ -459,13 +365,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: kSpacing),
 
             _buildTextField(
-              controller: _displayNameController,
-              label: "Leaderboard Display Name",
-              icon: Icons.leaderboard,
-              hint: "Name shown on leaderboard",
-              required: true,
+              controller: _emailController,
+              label: "Email Address",
+              icon: Icons.email,
+              hint: "teacher@example.com",
+              type: TextInputType.emailAddress,
             ),
             const SizedBox(height: kSpacing),
+
+            _buildTextField(
+              controller: _phoneController,
+              label: "Phone Number",
+              icon: Icons.phone,
+              hint: "Optional",
+              type: TextInputType.phone,
+            ),
+            const SizedBox(height: kSpacing),
+
+            _buildTextField(
+              controller: _departmentController,
+              label: "Department/Subject",
+              icon: Icons.subject,
+              hint: "e.g., Science, Mathematics",
+            ),
 
             _buildSectionHeader("Account Credentials", Icons.vpn_key),
 
@@ -520,38 +442,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 },
               ),
             ),
-
-            if (userRole == "student") ...[
-              _buildSectionHeader("Academic Information", Icons.school),
-
-              _buildDropdown(
-                label: "Section",
-                icon: Icons.group,
-                value: selectedSection,
-                items: sections,
-                onChanged: (v) => setState(() => selectedSection = v),
-                required: true,
-              ),
-              const SizedBox(height: kSpacing),
-
-              _buildTextField(
-                controller: _studentIdController,
-                label: "Student ID",
-                icon: Icons.badge,
-                hint: "Optional",
-                type: TextInputType.number,
-                formatter: [FilteringTextInputFormatter.digitsOnly],
-              ),
-              const SizedBox(height: kSpacing),
-
-              _buildTextField(
-                controller: _parentContactController,
-                label: "Parent/Guardian Contact",
-                icon: Icons.phone,
-                hint: "Optional",
-                type: TextInputType.phone,
-              ),
-            ],
 
             const SizedBox(height: 32),
 

@@ -1,4 +1,4 @@
-// watch_screen.dart
+// watch_screen.dart - UPDATED VERSION
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,7 +7,9 @@ import 'package:elearningapp_flutter/quiz_data/video_quiz_screen.dart';
 import 'package:elearningapp_flutter/data/video_data.dart';
 
 class WatchScreen extends StatefulWidget {
-  const WatchScreen({super.key});
+  final int initialLessonIndex;
+
+  const WatchScreen({super.key, this.initialLessonIndex = 0});
 
   @override
   State<WatchScreen> createState() => _WatchScreenState();
@@ -18,7 +20,7 @@ class _WatchScreenState extends State<WatchScreen>
   late VideoPlayerController _videoController;
   late TabController _tabController;
 
-  int currentLessonIndex = 0;
+  late int currentLessonIndex;
   bool _isInitialized = false;
   bool _showControls = true;
   final TextEditingController _notesController = TextEditingController();
@@ -28,17 +30,124 @@ class _WatchScreenState extends State<WatchScreen>
   Map<int, int> lessonPoints = {};
   int totalPoints = 0;
 
+  // NEW: Store loaded lessons from SharedPreferences
+  List<Map<String, dynamic>> allLessons = [];
+  bool _isLoadingLessons = true;
+
   @override
   void initState() {
     super.initState();
+    currentLessonIndex = widget.initialLessonIndex;
     _tabController = TabController(length: 4, vsync: this);
-    _loadVideo(scienceLessons[currentLessonIndex].videoUrl);
-    _loadExistingNote();
+    _loadLessonsFromStorage(); // Load lessons first
+  }
+
+  // NEW: Load lessons from SharedPreferences
+  Future<void> _loadLessonsFromStorage() async {
+    setState(() => _isLoadingLessons = true);
+    final prefs = await SharedPreferences.getInstance();
+
+    // Load default lessons
+    List<Map<String, dynamic>> defaultLessons = [];
+    int index = 0;
+    for (var lesson in scienceLessons) {
+      String videoId = 'default_video_$index';
+      defaultLessons.add(_lessonToMap(lesson, isDefault: true, id: videoId));
+      index++;
+    }
+
+    // Load teacher-created videos
+    String? videosJson = prefs.getString('teacher_videos');
+    List<Map<String, dynamic>> teacherVideos = [];
+    if (videosJson != null) {
+      try {
+        teacherVideos = List<Map<String, dynamic>>.from(jsonDecode(videosJson));
+      } catch (e) {
+        teacherVideos = [];
+      }
+    }
+
+    // Load modified default videos
+    String? modifiedJson = prefs.getString('modified_default_videos');
+    Map<String, dynamic> modifiedVideos = {};
+    if (modifiedJson != null) {
+      try {
+        modifiedVideos = Map<String, dynamic>.from(jsonDecode(modifiedJson));
+        for (int i = 0; i < defaultLessons.length; i++) {
+          String id = defaultLessons[i]['id'] as String;
+          if (modifiedVideos.containsKey(id)) {
+            defaultLessons[i] = modifiedVideos[id] as Map<String, dynamic>;
+            defaultLessons[i]['isDefault'] = true;
+            defaultLessons[i]['id'] = id;
+          }
+        }
+      } catch (e) {
+        modifiedVideos = {};
+      }
+    }
+
+    // Load deleted default videos
+    String? deletedJson = prefs.getString('deleted_default_videos');
+    List<String> deletedIds = [];
+    if (deletedJson != null) {
+      try {
+        deletedIds = List<String>.from(jsonDecode(deletedJson));
+      } catch (e) {
+        deletedIds = [];
+      }
+    }
+
+    defaultLessons =
+        defaultLessons
+            .where((video) => !deletedIds.contains(video['id']))
+            .toList();
+
+    setState(() {
+      allLessons = [...defaultLessons, ...teacherVideos];
+      _isLoadingLessons = false;
+    });
+
+    // Load video after lessons are loaded
+    if (allLessons.isNotEmpty) {
+      _loadVideo(allLessons[currentLessonIndex]['videoUrl'] as String);
+      _loadExistingNote();
+    }
+  }
+
+  // NEW: Convert ScienceLesson to Map
+  Map<String, dynamic> _lessonToMap(
+    ScienceLesson lesson, {
+    bool isDefault = false,
+    String? id,
+  }) {
+    return {
+      'id': id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      'isDefault': isDefault,
+      'title': lesson.title,
+      'emoji': lesson.emoji,
+      'description': lesson.description,
+      'videoUrl': lesson.videoUrl,
+      'duration': lesson.duration,
+      'funFact': lesson.funFact,
+      'keyTopics': lesson.keyTopics,
+      'moreFacts': lesson.moreFacts,
+      'quizQuestions':
+          lesson.quizQuestions
+              .map(
+                (q) => {
+                  'question': q.question,
+                  'options': q.options,
+                  'correctAnswer': q.correctAnswer,
+                  'explanation': q.explanation,
+                  'emoji': q.emoji,
+                },
+              )
+              .toList(),
+    };
   }
 
   void _loadVideo(String url) {
     if (url.startsWith('lib/assets/videos/')) {
-      // Local asset video
       _videoController =
           VideoPlayerController.asset(url)
             ..initialize().then((_) {
@@ -58,7 +167,6 @@ class _WatchScreenState extends State<WatchScreen>
               }
             });
     } else {
-      // Network video
       _videoController =
           VideoPlayerController.networkUrl(Uri.parse(url))
             ..initialize().then((_) {
@@ -81,8 +189,11 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Future<void> _loadExistingNote() async {
-    final lesson = scienceLessons[currentLessonIndex];
-    final existingNote = await NotesHelper.getVideoNoteForLesson(lesson.title);
+    if (allLessons.isEmpty) return;
+    final lesson = allLessons[currentLessonIndex];
+    final existingNote = await NotesHelper.getVideoNoteForLesson(
+      lesson['title'] as String,
+    );
 
     if (existingNote != null) {
       setState(() {
@@ -101,8 +212,6 @@ class _WatchScreenState extends State<WatchScreen>
       lessonPoints[currentLessonIndex] = 20;
       totalPoints += 20;
     });
-
-    // Show completion dialog
     _showCompletionDialog();
   }
 
@@ -177,13 +286,15 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   void _navigateToQuiz() async {
+    if (allLessons.isEmpty) return;
+
+    // Convert Map to ScienceLesson for quiz screen
+    final lessonMap = allLessons[currentLessonIndex];
+    final lesson = _mapToLesson(lessonMap);
+
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder:
-            (context) =>
-                VideoQuizScreen(lesson: scienceLessons[currentLessonIndex]),
-      ),
+      MaterialPageRoute(builder: (context) => VideoQuizScreen(lesson: lesson)),
     );
 
     if (result != null && result is int) {
@@ -195,14 +306,40 @@ class _WatchScreenState extends State<WatchScreen>
     }
   }
 
+  // NEW: Convert Map back to ScienceLesson for quiz
+  ScienceLesson _mapToLesson(Map<String, dynamic> map) {
+    return ScienceLesson(
+      title: map['title'] as String,
+      emoji: map['emoji'] as String,
+      description: map['description'] as String,
+      videoUrl: map['videoUrl'] as String,
+      duration: map['duration'] as String,
+      keyTopics: List<String>.from(map['keyTopics'] ?? []),
+      funFact: map['funFact'] as String,
+      moreFacts: List<String>.from(map['moreFacts'] ?? []),
+      quizQuestions:
+          (map['quizQuestions'] as List)
+              .map(
+                (q) => QuizQuestion(
+                  question: q['question'] as String,
+                  options: List<String>.from(q['options']),
+                  correctAnswer: q['correctAnswer'] as int,
+                  explanation: q['explanation'] as String,
+                  emoji: q['emoji'] as String,
+                ),
+              )
+              .toList(),
+    );
+  }
+
   void _changeLesson(int newIndex) {
-    if (newIndex >= 0 && newIndex < scienceLessons.length) {
+    if (newIndex >= 0 && newIndex < allLessons.length) {
       setState(() {
         currentLessonIndex = newIndex;
         _isInitialized = false;
         _videoController.dispose();
-        _loadVideo(scienceLessons[currentLessonIndex].videoUrl);
-        _loadExistingNote(); // Load notes for new lesson
+        _loadVideo(allLessons[currentLessonIndex]['videoUrl'] as String);
+        _loadExistingNote();
       });
     }
   }
@@ -219,12 +356,12 @@ class _WatchScreenState extends State<WatchScreen>
       return;
     }
 
-    final lesson = scienceLessons[currentLessonIndex];
-
+    if (allLessons.isEmpty) return;
+    final lesson = allLessons[currentLessonIndex];
     await NotesHelper.saveVideoNote(
-      title: lesson.title,
+      title: lesson['title'] as String,
       content: _notesController.text.trim(),
-      lessonEmoji: lesson.emoji,
+      lessonEmoji: lesson['emoji'] as String?,
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -263,7 +400,6 @@ class _WatchScreenState extends State<WatchScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Center play/pause button
             Center(
               child: IconButton(
                 icon: Icon(
@@ -282,7 +418,6 @@ class _WatchScreenState extends State<WatchScreen>
                 },
               ),
             ),
-            // Bottom controls
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Row(
@@ -310,9 +445,7 @@ class _WatchScreenState extends State<WatchScreen>
                   ),
                   IconButton(
                     icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: () {
-                      // Fullscreen functionality
-                    },
+                    onPressed: () {},
                   ),
                 ],
               ),
@@ -332,13 +465,98 @@ class _WatchScreenState extends State<WatchScreen>
 
   @override
   Widget build(BuildContext context) {
-    final lesson = scienceLessons[currentLessonIndex];
-    final totalLessons = scienceLessons.length;
+    // NEW: Show loading while lessons are being loaded
+    if (_isLoadingLessons || allLessons.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0D102C),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0D102C),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'Video Lesson',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        body: Center(
+          child:
+              _isLoadingLessons
+                  ? const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF7B4DFF)),
+                      SizedBox(height: 16),
+                      Text(
+                        "Loading lessons...",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  )
+                  : const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.video_library,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'No lessons available',
+                        style: TextStyle(color: Colors.white54, fontSize: 16),
+                      ),
+                    ],
+                  ),
+        ),
+      );
+    }
+
+    final lesson = allLessons[currentLessonIndex];
+    final totalLessons = allLessons.length;
     final progress = completedLessons.length / totalLessons;
     final isCompleted = completedLessons.contains(currentLessonIndex);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D102C),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D102C),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Back to Lesson Selection',
+        ),
+        title: const Text(
+          'Video Lesson',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFC107),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.star, color: Colors.white, size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  '$totalPoints pts',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Video Player
@@ -350,36 +568,33 @@ class _WatchScreenState extends State<WatchScreen>
             },
             child: Container(
               color: Colors.black,
-              child: SafeArea(
-                bottom: false,
-                child: AspectRatio(
-                  aspectRatio:
-                      _isInitialized
-                          ? _videoController.value.aspectRatio
-                          : 16 / 9,
-                  child: Stack(
-                    children: [
-                      Center(
-                        child:
-                            _isInitialized
-                                ? VideoPlayer(_videoController)
-                                : const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CircularProgressIndicator(
-                                      color: Color(0xFF7B4DFF),
-                                    ),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      "Loading video...",
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
-                                  ],
-                                ),
-                      ),
-                      if (_isInitialized) _buildVideoControls(),
-                    ],
-                  ),
+              child: AspectRatio(
+                aspectRatio:
+                    _isInitialized
+                        ? _videoController.value.aspectRatio
+                        : 16 / 9,
+                child: Stack(
+                  children: [
+                    Center(
+                      child:
+                          _isInitialized
+                              ? VideoPlayer(_videoController)
+                              : const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(
+                                    color: Color(0xFF7B4DFF),
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    "Loading video...",
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                ],
+                              ),
+                    ),
+                    if (_isInitialized) _buildVideoControls(),
+                  ],
                 ),
               ),
             ),
@@ -389,7 +604,7 @@ class _WatchScreenState extends State<WatchScreen>
           Expanded(
             child: Column(
               children: [
-                // Header with title and points
+                // Header
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
@@ -407,7 +622,7 @@ class _WatchScreenState extends State<WatchScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  lesson.emoji + " " + lesson.title,
+                                  "${lesson['emoji']} ${lesson['title']}",
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w900,
@@ -416,7 +631,7 @@ class _WatchScreenState extends State<WatchScreen>
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  "Lesson ${currentLessonIndex + 1} of $totalLessons • ${lesson.duration}",
+                                  "Lesson ${currentLessonIndex + 1} of $totalLessons • ${lesson['duration']}",
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
@@ -425,37 +640,9 @@ class _WatchScreenState extends State<WatchScreen>
                               ],
                             ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFC107),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.star,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '$totalPoints pts',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: 12),
-                      // Progress bar
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
@@ -553,7 +740,7 @@ class _WatchScreenState extends State<WatchScreen>
                             ),
                             const SizedBox(height: 12),
                             Text(
-                              lesson.description,
+                              lesson['description'] as String,
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 15,
@@ -570,7 +757,7 @@ class _WatchScreenState extends State<WatchScreen>
                               ),
                             ),
                             const SizedBox(height: 12),
-                            ...lesson.keyTopics.map(
+                            ...(lesson['keyTopics'] as List).map(
                               (topic) => Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
                                 child: Row(
@@ -584,7 +771,7 @@ class _WatchScreenState extends State<WatchScreen>
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
-                                        topic,
+                                        topic as String,
                                         style: const TextStyle(
                                           color: Colors.white70,
                                           fontSize: 14,
@@ -735,9 +922,9 @@ class _WatchScreenState extends State<WatchScreen>
                       // Lessons Tab
                       ListView.builder(
                         padding: const EdgeInsets.all(16),
-                        itemCount: scienceLessons.length,
+                        itemCount: allLessons.length,
                         itemBuilder: (context, index) {
-                          final lessonItem = scienceLessons[index];
+                          final lessonItem = allLessons[index];
                           final isCurrent = index == currentLessonIndex;
                           final isLessonCompleted = completedLessons.contains(
                             index,
@@ -776,13 +963,13 @@ class _WatchScreenState extends State<WatchScreen>
                                 ),
                                 child: Center(
                                   child: Text(
-                                    lessonItem.emoji,
+                                    lessonItem['emoji'] as String,
                                     style: const TextStyle(fontSize: 24),
                                   ),
                                 ),
                               ),
                               title: Text(
-                                lessonItem.title,
+                                lessonItem['title'] as String,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight:
@@ -808,7 +995,7 @@ class _WatchScreenState extends State<WatchScreen>
                                       style: TextStyle(color: Colors.white54),
                                     ),
                                     Text(
-                                      lessonItem.duration,
+                                      lessonItem['duration'] as String,
                                       style: const TextStyle(
                                         color: Colors.white54,
                                         fontSize: 12,
@@ -885,7 +1072,7 @@ class _WatchScreenState extends State<WatchScreen>
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          lesson.funFact,
+                                          lesson['funFact'] as String,
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 14,
@@ -907,54 +1094,58 @@ class _WatchScreenState extends State<WatchScreen>
                               ),
                             ),
                             const SizedBox(height: 12),
-                            ...lesson.moreFacts.asMap().entries.map((entry) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1C1F3E),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF7B4DFF,
-                                    ).withOpacity(0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      width: 30,
-                                      height: 30,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF7B4DFF),
-                                        shape: BoxShape.circle,
+                            ...(lesson['moreFacts'] as List)
+                                .asMap()
+                                .entries
+                                .map((entry) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1C1F3E),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(
+                                          0xFF7B4DFF,
+                                        ).withOpacity(0.3),
                                       ),
-                                      child: Center(
-                                        child: Text(
-                                          "${entry.key + 1}",
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 30,
+                                          height: 30,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF7B4DFF),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Center(
+                                            child: Text(
+                                              "${entry.key + 1}",
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        entry.value,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 14,
-                                          height: 1.5,
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            entry.value as String,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 14,
+                                              height: 1.5,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              );
-                            }),
+                                  );
+                                }),
                           ],
                         ),
                       ),
@@ -999,21 +1190,16 @@ class _WatchScreenState extends State<WatchScreen>
                 ),
               ),
             if (currentLessonIndex > 0 &&
-                currentLessonIndex < scienceLessons.length - 1)
+                currentLessonIndex < allLessons.length - 1)
               const SizedBox(width: 12),
-            if (currentLessonIndex < scienceLessons.length - 1)
+            if (currentLessonIndex < allLessons.length - 1)
               Expanded(
-                flex: currentLessonIndex == 0 ? 1 : 1,
                 child: ElevatedButton.icon(
                   onPressed: () => _changeLesson(currentLessonIndex + 1),
                   icon: const Icon(Icons.arrow_forward),
-                  label: const Text(
-                    "Next Lesson",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  label: const Text("Next"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF7B4DFF),
-                    foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

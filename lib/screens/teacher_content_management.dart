@@ -62,7 +62,6 @@ class _TeacherContentManagementScreenState
             Tab(icon: Icon(Icons.menu_book), text: "Read"),
             Tab(icon: Icon(Icons.play_circle), text: "Watch"),
             Tab(icon: Icon(Icons.sports_esports), text: "Play"),
-            Tab(icon: Icon(Icons.message), text: "Messages"),
           ],
         ),
       ),
@@ -72,9 +71,34 @@ class _TeacherContentManagementScreenState
           ReadContentManagement(),
           WatchContentManagement(),
           PlayContentManagement(),
-          TeacherMessagesTab(),
         ],
       ),
+    );
+  }
+}
+
+/// Standalone Teacher Messages Screen for Bottom Navigation
+class TeacherMessagesScreen extends StatelessWidget {
+  const TeacherMessagesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D102C),
+      appBar: AppBar(
+        title: const Text(
+          "Student Messages",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: const Color(0xFF0D102C),
+        elevation: 0,
+        automaticallyImplyLeading: false, // Remove back button
+      ),
+      body: const TeacherMessagesTab(),
     );
   }
 }
@@ -146,55 +170,58 @@ class _TeacherMessagesTabState extends State<TeacherMessagesTab> {
   void _deleteMessage(Map<String, dynamic> message) async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1F3E),
-        title: const Text(
-          'Delete Message',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Are you sure you want to delete this message?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white54),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1F3E),
+            title: const Text(
+              'Delete Message',
+              style: TextStyle(color: Colors.white),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              String? messagesJson = prefs.getString('admin_messages');
-
-              if (messagesJson != null) {
-                List<dynamic> decoded = jsonDecode(messagesJson);
-                List<Map<String, dynamic>> allMessages =
-                    decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-
-                allMessages.removeWhere((m) => m['id'] == message['id']);
-                await _saveMessages(allMessages);
-
-                setState(() {
-                  _messages.remove(message);
-                });
-              }
-
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Message deleted'),
-                  backgroundColor: Colors.red,
+            content: const Text(
+              'Are you sure you want to delete this message?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white54),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  String? messagesJson = prefs.getString('admin_messages');
+
+                  if (messagesJson != null) {
+                    List<dynamic> decoded = jsonDecode(messagesJson);
+                    List<Map<String, dynamic>> allMessages =
+                        decoded
+                            .map((e) => Map<String, dynamic>.from(e))
+                            .toList();
+
+                    allMessages.removeWhere((m) => m['id'] == message['id']);
+                    await _saveMessages(allMessages);
+
+                    setState(() {
+                      _messages.remove(message);
+                    });
+                  }
+
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Message deleted'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -203,59 +230,60 @@ class _TeacherMessagesTabState extends State<TeacherMessagesTab> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1F3E),
-        title: Row(
-          children: [
-            const Icon(Icons.person, color: Color(0xFF7B4DFF)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message['subject'] ?? 'No Subject',
-                style: const TextStyle(color: Colors.white, fontSize: 18),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1F3E),
+            title: Row(
+              children: [
+                const Icon(Icons.person, color: Color(0xFF7B4DFF)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message['subject'] ?? 'No Subject',
+                    style: const TextStyle(color: Colors.white, fontSize: 18),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDetailRow(Icons.person, 'From', '@${message['from']}'),
+                  const SizedBox(height: 12),
+                  _buildDetailRow(
+                    Icons.access_time,
+                    'Sent',
+                    _formatTimestamp(message['timestamp']),
+                  ),
+                  const Divider(color: Colors.white24, height: 24),
+                  const Text(
+                    'Message:',
+                    style: TextStyle(
+                      color: Color(0xFF7B4DFF),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message['message'] ?? '',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow(Icons.person, 'From', '@${message['from']}'),
-              const SizedBox(height: 12),
-              _buildDetailRow(
-                Icons.access_time,
-                'Sent',
-                _formatTimestamp(message['timestamp']),
-              ),
-              const Divider(color: Colors.white24, height: 24),
-              const Text(
-                'Message:',
-                style: TextStyle(
-                  color: Color(0xFF7B4DFF),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(color: Colors.white70),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                message['message'] ?? '',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -354,136 +382,147 @@ class _TeacherMessagesTabState extends State<TeacherMessagesTab> {
           ),
         ),
         Expanded(
-          child: _messages.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inbox, size: 80, color: Colors.white24),
-                      SizedBox(height: 16),
-                      Text(
-                        'No messages yet',
-                        style: TextStyle(color: Colors.white54, fontSize: 18),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Messages from students will appear here',
-                        style: TextStyle(color: Colors.white38, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _messages.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    final isRead = message['isRead'] ?? false;
+          child:
+              _messages.isEmpty
+                  ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inbox, size: 80, color: Colors.white24),
+                        SizedBox(height: 16),
+                        Text(
+                          'No messages yet',
+                          style: TextStyle(color: Colors.white54, fontSize: 18),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Messages from students will appear here',
+                          style: TextStyle(color: Colors.white38, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  )
+                  : ListView.builder(
+                    itemCount: _messages.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (context, index) {
+                      final message = _messages[index];
+                      final isRead = message['isRead'] ?? false;
 
-                    return Card(
-                      color: const Color(0xFF1C1F3E),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: ListTile(
-                        leading: Stack(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor:
-                                  isRead ? Colors.grey : const Color(0xFF7B4DFF),
-                              child: const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                              ),
-                            ),
-                            if (!isRead)
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: const BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
+                      return Card(
+                        color: const Color(0xFF1C1F3E),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          leading: Stack(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor:
+                                    isRead
+                                        ? Colors.grey
+                                        : const Color(0xFF7B4DFF),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
                                 ),
                               ),
-                          ],
-                        ),
-                        title: Text(
-                          message['subject'] ?? 'No Subject',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight:
-                                isRead ? FontWeight.normal : FontWeight.bold,
+                              if (!isRead)
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'From: @${message['from']}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
+                          title: Text(
+                            message['subject'] ?? 'No Subject',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight:
+                                  isRead ? FontWeight.normal : FontWeight.bold,
                             ),
-                            Text(
-                              _formatTimestamp(message['timestamp']),
-                              style: const TextStyle(
-                                color: Colors.white54,
-                                fontSize: 11,
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'From: @${message['from']}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
+                              Text(
+                                _formatTimestamp(message['timestamp']),
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: Colors.white,
                             ),
-                          ],
-                        ),
-                        trailing: PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, color: Colors.white),
-                          color: const Color(0xFF2A1B4A),
-                          onSelected: (value) {
-                            if (value == 'view') {
-                              _viewMessageDetails(message);
-                            } else if (value == 'delete') {
-                              _deleteMessage(message);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'view',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.visibility,
-                                    color: Colors.white70,
-                                    size: 20,
+                            color: const Color(0xFF2A1B4A),
+                            onSelected: (value) {
+                              if (value == 'view') {
+                                _viewMessageDetails(message);
+                              } else if (value == 'delete') {
+                                _deleteMessage(message);
+                              }
+                            },
+                            itemBuilder:
+                                (context) => [
+                                  const PopupMenuItem(
+                                    value: 'view',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.visibility,
+                                          color: Colors.white70,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'View',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'View',
-                                    style: TextStyle(color: Colors.white),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete,
+                                          color: Colors.red,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Delete',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Delete',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
+                          onTap: () => _viewMessageDetails(message),
                         ),
-                        onTap: () => _viewMessageDetails(message),
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
         ),
       ],
     );

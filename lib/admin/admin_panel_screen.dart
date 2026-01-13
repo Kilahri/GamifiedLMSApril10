@@ -88,7 +88,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         _students.add({
           'username': individualUsername,
           'password': individualPassword,
-          'displayName': individualName ?? individualUsername,
+
           'email': '',
           'section': individualSection ?? 'N/A',
           'role': 'student',
@@ -198,6 +198,60 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                   Navigator.pop(context);
                   _showMessage('Message deleted');
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Added missing _deleteUser method
+  void _deleteUser(Map<String, dynamic> user, String userType) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1F3E),
+            title: Text(
+              'Delete $userType',
+              style: const TextStyle(color: Colors.white),
+            ),
+            content: Text(
+              'Are you sure you want to delete ${user['fullName'] ?? user['username']}?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+
+                  // Remove from SharedPreferences
+                  if (userType == 'Teacher') {
+                    await prefs.remove("teacher_name_${user['username']}");
+                  } else {
+                    await prefs.remove("student_name_${user['username']}");
+                  }
+
+                  setState(() {
+                    if (userType == 'Teacher') {
+                      _teachers.remove(user);
+                    } else {
+                      _students.remove(user);
+                    }
+                  });
+
+                  _saveUsers();
+                  Navigator.pop(context);
+                  _showMessage('$userType deleted successfully');
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text('Delete'),
@@ -509,7 +563,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final usernameController = TextEditingController();
     final passwordController = TextEditingController();
     final emailController = TextEditingController();
-    final displayNameController = TextEditingController();
+    final fullNameController = TextEditingController();
+    final studentIdController = TextEditingController();
+    final parentContactController = TextEditingController();
     String? selectedSection = userType == 'Student' ? 'Section A' : null;
 
     showDialog(
@@ -530,12 +586,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Full Name field
                         _buildDialogTextField(
-                          usernameController,
-                          'Username',
+                          fullNameController,
+                          'Full Name',
                           Icons.person,
                         ),
                         const SizedBox(height: 12),
+
+                        _buildDialogTextField(
+                          usernameController,
+                          'Username',
+                          Icons.account_circle,
+                        ),
+                        const SizedBox(height: 12),
+
                         _buildDialogTextField(
                           passwordController,
                           'Password',
@@ -543,50 +608,65 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           obscure: true,
                         ),
                         const SizedBox(height: 12),
+
                         _buildDialogTextField(
                           emailController,
                           'Email',
                           Icons.email,
                         ),
-                        const SizedBox(height: 12),
-                        _buildDialogTextField(
-                          displayNameController,
-                          'Display Name',
-                          Icons.badge,
-                        ),
 
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: selectedSection,
-                          dropdownColor: const Color(0xFF2A1B4A),
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: 'Section',
-                            labelStyle: const TextStyle(color: Colors.white70),
-                            prefixIcon: const Icon(
-                              Icons.group,
-                              color: kAccentColor,
+                        // Display Name only for Students
+                        if (userType == 'Student') ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: selectedSection,
+                            dropdownColor: const Color(0xFF2A1B4A),
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              labelText: 'Section',
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.group,
+                                color: kAccentColor,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF2A1B4A),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
                             ),
-                            filled: true,
-                            fillColor: const Color(0xFF2A1B4A),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
+                            items:
+                                ['Section A', 'Section B', 'Section C']
+                                    .map(
+                                      (section) => DropdownMenuItem(
+                                        value: section,
+                                        child: Text(section),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (value) => setDialogState(
+                                  () => selectedSection = value,
+                                ),
                           ),
-                          items:
-                              ['Section A', 'Section B', 'Section C']
-                                  .map(
-                                    (section) => DropdownMenuItem(
-                                      value: section,
-                                      child: Text(section),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (value) =>
-                                  setDialogState(() => selectedSection = value),
-                        ),
+                          const SizedBox(height: 12),
+
+                          _buildDialogTextField(
+                            studentIdController,
+                            'Student ID',
+                            Icons.badge,
+                          ),
+                          const SizedBox(height: 12),
+
+                          _buildDialogTextField(
+                            parentContactController,
+                            'Parent Contact',
+                            Icons.phone,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -599,21 +679,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                     ),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (usernameController.text.trim().isEmpty ||
-                            passwordController.text.isEmpty) {
-                          _showMessage('Username and password are required');
+                            passwordController.text.isEmpty ||
+                            fullNameController.text.trim().isEmpty) {
+                          _showMessage(
+                            'Username, password, and full name are required',
+                          );
                           return;
                         }
 
+                        final String username = usernameController.text.trim();
+                        final String fullName = fullNameController.text.trim();
+
                         final newUser = {
-                          'username': usernameController.text.trim(),
+                          'username': username,
                           'password': passwordController.text,
                           'email': emailController.text.trim(),
-                          'displayName':
-                              displayNameController.text.trim().isEmpty
-                                  ? usernameController.text.trim()
-                                  : displayNameController.text.trim(),
+                          'fullName': fullName,
                           'role': userType.toLowerCase(),
                           'isActive': true,
                           'createdAt': DateTime.now().toIso8601String(),
@@ -622,6 +705,24 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
                         if (userType == 'Student') {
                           newUser['section'] = selectedSection ?? 'Section A';
+                          newUser['studentId'] =
+                              studentIdController.text.trim();
+                          newUser['parentContact'] =
+                              parentContactController.text.trim();
+                        }
+
+                        // Save to SharedPreferences
+                        final prefs = await SharedPreferences.getInstance();
+                        if (userType == 'Teacher') {
+                          await prefs.setString(
+                            "teacher_name_$username",
+                            fullName,
+                          );
+                        } else {
+                          await prefs.setString(
+                            "student_name_$username",
+                            fullName,
+                          );
                         }
 
                         setState(() {
@@ -651,8 +752,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     final usernameController = TextEditingController(text: user['username']);
     final passwordController = TextEditingController(text: user['password']);
     final emailController = TextEditingController(text: user['email'] ?? '');
-    final displayNameController = TextEditingController(
-      text: user['displayName'] ?? '',
+
+    final fullNameController = TextEditingController(
+      text: user['fullName'] ?? '',
+    );
+    final studentIdController = TextEditingController(
+      text: user['studentId'] ?? '',
+    );
+    final parentContactController = TextEditingController(
+      text: user['parentContact'] ?? '',
     );
     String? selectedSection = user['section'];
 
@@ -674,12 +782,21 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Full Name field
                         _buildDialogTextField(
-                          usernameController,
-                          'Username',
+                          fullNameController,
+                          'Full Name',
                           Icons.person,
                         ),
                         const SizedBox(height: 12),
+
+                        _buildDialogTextField(
+                          usernameController,
+                          'Username',
+                          Icons.account_circle,
+                        ),
+                        const SizedBox(height: 12),
+
                         _buildDialogTextField(
                           passwordController,
                           'Password',
@@ -687,50 +804,65 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           obscure: true,
                         ),
                         const SizedBox(height: 12),
+
                         _buildDialogTextField(
                           emailController,
                           'Email',
                           Icons.email,
                         ),
-                        const SizedBox(height: 12),
-                        _buildDialogTextField(
-                          displayNameController,
-                          'Display Name',
-                          Icons.badge,
-                        ),
 
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: selectedSection,
-                          dropdownColor: const Color(0xFF2A1B4A),
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: 'Section',
-                            labelStyle: const TextStyle(color: Colors.white70),
-                            prefixIcon: const Icon(
-                              Icons.group,
-                              color: kAccentColor,
+                        // Display Name ONLY for Students
+                        if (userType == 'Student') ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: selectedSection,
+                            dropdownColor: const Color(0xFF2A1B4A),
+                            style: const TextStyle(color: Colors.white),
+                            decoration: InputDecoration(
+                              labelText: 'Section',
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.group,
+                                color: kAccentColor,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF2A1B4A),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
                             ),
-                            filled: true,
-                            fillColor: const Color(0xFF2A1B4A),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide.none,
-                            ),
+                            items:
+                                ['Section A', 'Section B', 'Section C']
+                                    .map(
+                                      (section) => DropdownMenuItem(
+                                        value: section,
+                                        child: Text(section),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged:
+                                (value) => setDialogState(
+                                  () => selectedSection = value,
+                                ),
                           ),
-                          items:
-                              ['Section A', 'Section B', 'Section C']
-                                  .map(
-                                    (section) => DropdownMenuItem(
-                                      value: section,
-                                      child: Text(section),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (value) =>
-                                  setDialogState(() => selectedSection = value),
-                        ),
+                          const SizedBox(height: 12),
+
+                          _buildDialogTextField(
+                            studentIdController,
+                            'Student ID',
+                            Icons.badge,
+                          ),
+                          const SizedBox(height: 12),
+
+                          _buildDialogTextField(
+                            parentContactController,
+                            'Parent Contact',
+                            Icons.phone,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -743,15 +875,53 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                       ),
                     ),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        final String username = usernameController.text.trim();
+                        final String fullName = fullNameController.text.trim();
+                        final String oldUsername = user['username'];
+
+                        final prefs = await SharedPreferences.getInstance();
+
+                        // Handle username change
+                        if (username != oldUsername) {
+                          if (userType == 'Teacher') {
+                            await prefs.remove("teacher_name_$oldUsername");
+                            await prefs.setString(
+                              "teacher_name_$username",
+                              fullName,
+                            );
+                          } else {
+                            await prefs.remove("student_name_$oldUsername");
+                            await prefs.setString(
+                              "student_name_$username",
+                              fullName,
+                            );
+                          }
+                        } else {
+                          if (userType == 'Teacher') {
+                            await prefs.setString(
+                              "teacher_name_$username",
+                              fullName,
+                            );
+                          } else {
+                            await prefs.setString(
+                              "student_name_$username",
+                              fullName,
+                            );
+                          }
+                        }
+
                         setState(() {
-                          user['username'] = usernameController.text.trim();
+                          user['username'] = username;
                           user['password'] = passwordController.text;
                           user['email'] = emailController.text.trim();
-                          user['displayName'] =
-                              displayNameController.text.trim();
+                          user['fullName'] = fullName;
+
                           if (userType == 'Student') {
                             user['section'] = selectedSection;
+                            user['studentId'] = studentIdController.text.trim();
+                            user['parentContact'] =
+                                parentContactController.text.trim();
                           }
                         });
 
@@ -770,47 +940,115 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
-  void _deleteUser(Map<String, dynamic> user, String userType) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1C1F3E),
-            title: const Text(
-              'Confirm Delete',
-              style: TextStyle(color: Colors.white),
+  Widget _buildUserCard(Map<String, dynamic> user, String userType) {
+    final isActive = user['isActive'] ?? true;
+    final fullName = user['fullName'] ?? user['username'];
+
+    return Card(
+      color: const Color(0xFF1C1F3E),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isActive ? kButtonColor : Colors.grey,
+          child: Icon(
+            userType == 'Teacher' ? Icons.school : Icons.person,
+            color: Colors.white,
+          ),
+        ),
+        title: Text(
+          fullName,
+          style: TextStyle(
+            color: isActive ? Colors.white : Colors.white38,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '@${user['username']}',
+              style: TextStyle(
+                color: isActive ? Colors.white70 : Colors.white24,
+              ),
             ),
-            content: Text(
-              'Are you sure you want to delete ${user['username']}?',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.white70),
+
+            // Show leaderboard name ONLY for students
+            if (user['section'] != null)
+              Text(
+                '${user['section']}',
+                style: TextStyle(
+                  color: isActive ? Colors.white54 : Colors.white24,
+                  fontSize: 12,
                 ),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    if (userType == 'Teacher') {
-                      _teachers.remove(user);
-                    } else {
-                      _students.remove(user);
-                    }
-                  });
-
-                  _saveUsers();
-                  Navigator.pop(context);
-                  _showMessage('$userType deleted successfully');
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
+            if (user['email'] != null && user['email'].isNotEmpty)
+              Text(
+                user['email'],
+                style: TextStyle(
+                  color: isActive ? Colors.white54 : Colors.white24,
+                  fontSize: 12,
+                ),
               ),
-            ],
-          ),
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: Colors.white),
+          color: const Color(0xFF2A1B4A),
+          onSelected: (value) {
+            switch (value) {
+              case 'edit':
+                _showEditUserDialog(user, userType);
+                break;
+              case 'toggle':
+                _toggleUserStatus(user);
+                break;
+              case 'delete':
+                _deleteUser(user, userType);
+                break;
+            }
+          },
+          itemBuilder:
+              (context) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, color: Colors.white70, size: 20),
+                      SizedBox(width: 8),
+                      Text('Edit', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'toggle',
+                  child: Row(
+                    children: [
+                      Icon(
+                        isActive ? Icons.block : Icons.check_circle,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isActive ? 'Deactivate' : 'Activate',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+        ),
+      ),
     );
   }
 
@@ -940,115 +1178,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         content: Text(message),
         backgroundColor: kButtonColor,
         behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Widget _buildUserCard(Map<String, dynamic> user, String userType) {
-    final isActive = user['isActive'] ?? true;
-
-    return Card(
-      color: const Color(0xFF1C1F3E),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: isActive ? kButtonColor : Colors.grey,
-          child: Icon(
-            userType == 'Teacher' ? Icons.school : Icons.person,
-            color: Colors.white,
-          ),
-        ),
-        title: Text(
-          user['displayName'] ?? user['username'],
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.white38,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '@${user['username']}',
-              style: TextStyle(
-                color: isActive ? Colors.white70 : Colors.white24,
-              ),
-            ),
-            if (user['section'] != null)
-              Text(
-                '${user['section']}',
-                style: TextStyle(
-                  color: isActive ? Colors.white54 : Colors.white24,
-                  fontSize: 12,
-                ),
-              ),
-            if (user['email'] != null && user['email'].isNotEmpty)
-              Text(
-                user['email'],
-                style: TextStyle(
-                  color: isActive ? Colors.white54 : Colors.white24,
-                  fontSize: 12,
-                ),
-              ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert, color: Colors.white),
-          color: const Color(0xFF2A1B4A),
-          onSelected: (value) {
-            switch (value) {
-              case 'edit':
-                _showEditUserDialog(user, userType);
-                break;
-              case 'toggle':
-                _toggleUserStatus(user);
-                break;
-              case 'delete':
-                _deleteUser(user, userType);
-                break;
-            }
-          },
-          itemBuilder:
-              (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, color: Colors.white70, size: 20),
-                      SizedBox(width: 8),
-                      Text('Edit', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'toggle',
-                  child: Row(
-                    children: [
-                      Icon(
-                        isActive ? Icons.block : Icons.check_circle,
-                        color: Colors.white70,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        isActive ? 'Deactivate' : 'Activate',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red, size: 20),
-                      SizedBox(width: 8),
-                      Text('Delete', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-        ),
       ),
     );
   }
