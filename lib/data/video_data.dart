@@ -9,6 +9,7 @@ class ScienceLesson {
   final String funFact;
   final List<String> moreFacts;
   final List<QuizQuestion> quizQuestions;
+  final String topic; // NEW: Topic field
 
   ScienceLesson({
     required this.title,
@@ -20,6 +21,7 @@ class ScienceLesson {
     required this.funFact,
     required this.moreFacts,
     required this.quizQuestions,
+    required this.topic, // NEW: Required topic
   });
 }
 
@@ -48,6 +50,7 @@ final List<ScienceLesson> scienceLessons = [
         "Discover how water moves around our planet! Learn about evaporation, condensation, and precipitation - the three main processes that keep water cycling through Earth's atmosphere, land, and oceans. This is one of nature's most important recycling systems!",
     videoUrl: "lib/assets/videos/theWaterCycle.mp4",
     duration: "5 min",
+    topic: "water_cycle", // NEW: Topic assignment
     keyTopics: [
       "Evaporation: How water turns into invisible gas",
       "Condensation: How clouds are formed",
@@ -105,6 +108,7 @@ final List<ScienceLesson> scienceLessons = [
         "Take a journey through space! Learn about the Sun, the eight planets, moons, asteroids, and comets. Discover what makes Earth special and why planets orbit the Sun. Get ready to explore our cosmic neighborhood!",
     videoUrl: "lib/assets/videos/planetSolarSystem.mp4",
     duration: "8 min",
+    topic: "solar_system", // NEW: Topic assignment
     keyTopics: [
       "The Sun: Our star at the center of everything",
       "The 8 planets and their unique features",
@@ -155,6 +159,7 @@ final List<ScienceLesson> scienceLessons = [
         "Discover the amazing superpower that plants have! Learn how plants use sunlight, water, and carbon dioxide to make their own food and produce the oxygen we breathe. This process, called photosynthesis, is one of the most important reactions on Earth!",
     videoUrl: "lib/assets/videos/photosynthesis.mp4",
     duration: "5 min",
+    topic: "photosynthesis", // NEW: Topic assignment
     keyTopics: [
       "How plants make food from sunlight",
       "The role of chlorophyll (the green pigment)",
@@ -211,6 +216,7 @@ final List<ScienceLesson> scienceLessons = [
         "Everything around you is made of matter! Learn about the three states of matter - solids, liquids, and gases - and discover how matter can change from one state to another. See how adding or removing heat causes amazing transformations!",
     videoUrl: "lib/assets/videos/statesOfMatter.mp4",
     duration: "7 min",
+    topic: "changes_of_matter", // NEW: Topic assignment
     keyTopics: [
       "Solids: particles packed tightly together",
       "Liquids: particles that can flow",
@@ -263,6 +269,7 @@ final List<ScienceLesson> scienceLessons = [
         "Discover how living things depend on each other for survival! Learn about producers, consumers, decomposers, and how energy flows through food chains and food webs. Understand why every organism plays an important role in keeping ecosystems healthy and balanced.",
     videoUrl: "lib/assets/videos/foodChain.mp4",
     duration: "7 min",
+    topic: "ecosystem_food_web", // NEW: Topic assignment
     keyTopics: [
       "Producers: plants that make their own food",
       "Consumers: animals that eat other organisms",

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:elearningapp_flutter/screens/login_screen.dart';
 import 'package:elearningapp_flutter/screens/teacher/teacher_edit_profile_screen.dart';
-import 'package:elearningapp_flutter/settings/avatar.dart';
+import 'package:elearningapp_flutter/screens/teacher/teacher_avatar.dart';
 import 'package:elearningapp_flutter/settings/contact_support_screen.dart';
+import 'package:elearningapp_flutter/screens/teacher/teacher_announcement_managment.dart';
+import 'package:elearningapp_flutter/screens/teacher/teacher_resources.dart';
 
 // This screen can be accessed from TeacherContentManagementScreen
 // Add it as a 5th tab or navigate to it via an app bar action button
@@ -19,7 +21,6 @@ class TeacherSettingsScreen extends StatefulWidget {
 
 class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
   bool _isNotificationEnabled = true;
-  bool _isAutoGradeEnabled = false;
   String _displayName = "";
   String _currentUsername = "";
   String _selectedAvatar = "assets/avatars/avatar_1.png"; // Default avatar
@@ -51,8 +52,6 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
       _selectedAvatar =
           prefs.getString("avatar_$_currentUsername") ??
           "assets/avatars/avatar_1.png";
-      _isAutoGradeEnabled =
-          prefs.getBool("auto_grade_$_currentUsername") ?? false;
     });
   }
 
@@ -188,7 +187,7 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
                         context,
                         MaterialPageRoute(
                           builder:
-                              (context) => AvatarSelectionScreen(
+                              (context) => TeacherAvatarSelectionScreen(
                                 currentUsername: _currentUsername,
                                 currentAvatar: _selectedAvatar,
                               ),
@@ -276,34 +275,26 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
           // Teaching Tools Section
           _buildSectionTitle("Teaching Tools & Management"),
           _buildSettingsTile(
-            icon: Icons.assignment,
-            title: "Manage Assignments",
-            subtitle: "Create, edit, and grade student assignments",
-            onTap: () => _showFunctionalityDialog("Assignment Management"),
-          ),
-          _buildSettingsTile(
-            icon: Icons.quiz,
-            title: "Quiz & Test Manager",
-            subtitle: "Create and manage quizzes and tests",
-            onTap: () => _showFunctionalityDialog("Quiz Manager"),
-          ),
-          _buildSettingsTile(
             icon: Icons.people,
             title: "Student Progress",
             subtitle: "View student performance and analytics",
             onTap: () => _showFunctionalityDialog("Student Progress"),
           ),
           _buildSettingsTile(
-            icon: Icons.grade,
-            title: "Gradebook",
-            subtitle: "Manage and export grades",
-            onTap: () => _showFunctionalityDialog("Gradebook"),
-          ),
-          _buildSettingsTile(
             icon: Icons.announcement,
             title: "Announcements",
             subtitle: "Post announcements to students",
-            onTap: () => _showFunctionalityDialog("Announcements"),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => TeacherAnnouncementManagementScreen(
+                        currentUsername: _currentUsername,
+                      ),
+                ),
+              );
+            },
           ),
 
           // Updated section in TeacherSettingsScreen
@@ -344,7 +335,7 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
                 context,
                 MaterialPageRoute(
                   builder:
-                      (context) => AvatarSelectionScreen(
+                      (context) => TeacherAvatarSelectionScreen(
                         currentUsername: _currentUsername,
                         currentAvatar: _selectedAvatar,
                       ),
@@ -390,42 +381,16 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
               _showFunctionalityDialog("Notifications");
             },
           ),
-          _buildSettingsSwitchTile(
-            icon: Icons.auto_awesome,
-            title: "Auto-Grade Multiple Choice",
-            subtitle: "Automatically grade multiple choice questions",
-            value: _isAutoGradeEnabled,
-            onChanged: (bool newValue) async {
-              setState(() {
-                _isAutoGradeEnabled = newValue;
-              });
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool("auto_grade_$_currentUsername", newValue);
-              _showFunctionalityDialog("Auto-Grade");
-            },
-          ),
 
           const SizedBox(height: 20),
 
           // Course Management Section
           _buildSectionTitle("Course Management"),
           _buildSettingsTile(
-            icon: Icons.class_,
-            title: "My Classes",
-            subtitle: "View and manage your classes",
-            onTap: () => _showFunctionalityDialog("My Classes"),
-          ),
-          _buildSettingsTile(
             icon: Icons.library_books,
             title: "Course Materials",
             subtitle: "Upload and organize course content",
             onTap: () => _showFunctionalityDialog("Course Materials"),
-          ),
-          _buildSettingsTile(
-            icon: Icons.calendar_today,
-            title: "Class Schedule",
-            subtitle: "View and manage your teaching schedule",
-            onTap: () => _showFunctionalityDialog("Class Schedule"),
           ),
 
           const SizedBox(height: 20),
@@ -436,7 +401,17 @@ class _TeacherSettingsScreenState extends State<TeacherSettingsScreen> {
             icon: Icons.help_outline,
             title: "Teacher Resources",
             subtitle: "Access teaching guides and resources",
-            onTap: () => _showFunctionalityDialog("Teacher Resources"),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => TeacherResourcesScreen(
+                        currentUsername: _currentUsername,
+                      ),
+                ),
+              );
+            },
           ),
           _buildSettingsTile(
             icon: Icons.email_outlined,

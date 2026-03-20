@@ -1,16 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_screen.dart';
-import 'play_screen.dart';
-import 'watch_screen.dart';
-import 'read_screen.dart';
-import 'settings_screen.dart';
+import 'package:elearningapp_flutter/screens/login_screen.dart';
+import 'package:elearningapp_flutter/screens/play_screen.dart';
+import 'package:elearningapp_flutter/screens/watch_screen.dart';
+import 'package:elearningapp_flutter/screens/read_screen.dart';
+import 'package:elearningapp_flutter/screens/settings_screen.dart';
+import 'package:elearningapp_flutter/screens/student_announcement_screen.dart';
+import 'dart:convert';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final String role;
   final String username;
 
   const HomeScreen({super.key, required this.role, required this.username});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _unreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final announcementsJson = prefs.getString('announcements') ?? '[]';
+    final List<dynamic> decoded = jsonDecode(announcementsJson);
+    final lastReadCount =
+        prefs.getInt('unread_announcements_${widget.username}') ?? 0;
+
+    setState(() {
+      _unreadCount = decoded.length - lastReadCount;
+      if (_unreadCount < 0) _unreadCount = 0;
+    });
+  }
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
@@ -43,7 +71,7 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Header with App Name and Settings
+                // Top Header with App Name and Notifications/Settings
                 _buildHeader(context),
 
                 const SizedBox(height: 12),
@@ -71,8 +99,8 @@ class HomeScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder:
                                     (ctx) => PlayScreen(
-                                      role: role,
-                                      username: username,
+                                      role: widget.role,
+                                      username: widget.username,
                                     ),
                               ),
                             ),
@@ -125,8 +153,10 @@ class HomeScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder:
-                              (ctx) =>
-                                  PlayScreen(role: role, username: username),
+                              (ctx) => PlayScreen(
+                                role: widget.role,
+                                username: widget.username,
+                              ),
                         ),
                       ),
                 ),
@@ -186,25 +216,85 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-            IconButton(
-              icon: const Icon(Icons.settings, color: Colors.white70, size: 24),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (context) => SettingsScreen(
-                          currentUsername: username, // ✅ FIX: Pass the username
+            Row(
+              children: [
+                // Notification Bell Icon (only for students)
+                if (widget.role.toLowerCase() == 'student')
+                  Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.white70,
+                          size: 24,
                         ),
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => StudentAnnouncementsScreen(
+                                    currentUsername: widget.username,
+                                  ),
+                            ),
+                          );
+                          // Reload unread count after viewing announcements
+                          _loadUnreadCount();
+                        },
+                      ),
+                      if (_unreadCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              _unreadCount > 9 ? '9+' : _unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                );
-              },
+                // Settings Icon
+                IconButton(
+                  icon: const Icon(
+                    Icons.settings,
+                    color: Colors.white70,
+                    size: 24,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => SettingsScreen(
+                              currentUsername: widget.username,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
         const SizedBox(height: 10),
         Text(
-          "Welcome $role 👋",
+          "Welcome ${widget.role} 👋",
           style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -255,14 +345,12 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Removed Icons.school error placeholder
           Image.asset(
             "lib/assets/owl.png",
             height: 100,
             width: 100,
             errorBuilder:
-                (context, error, stackTrace) =>
-                    const SizedBox.shrink(), // Displays nothing if image fails
+                (context, error, stackTrace) => const SizedBox.shrink(),
           ),
         ],
       ),

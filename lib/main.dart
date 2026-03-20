@@ -6,17 +6,19 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+
+  runApp(const SciLearnApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class SciLearnApp extends StatelessWidget {
+  const SciLearnApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'E-Learning App',
+      title: 'SciLearn',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

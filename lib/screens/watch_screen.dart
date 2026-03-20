@@ -1,10 +1,13 @@
-// watch_screen.dart - UPDATED VERSION
+// watch_screen.dart - WITH YOUTUBE SUPPORT
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:elearningapp_flutter/quiz_data/video_quiz_screen.dart';
 import 'package:elearningapp_flutter/data/video_data.dart';
+import 'dart:io';
+import 'package:elearningapp_flutter/helpers/video_upload_helper.dart';
 
 class WatchScreen extends StatefulWidget {
   final int initialLessonIndex;
@@ -17,20 +20,24 @@ class WatchScreen extends StatefulWidget {
 
 class _WatchScreenState extends State<WatchScreen>
     with TickerProviderStateMixin {
-  late VideoPlayerController _videoController;
+  // ── Regular video player (for assets / network mp4 / local files) ──
+  VideoPlayerController? _videoController;
+
+  // ── YouTube player (for YouTube URLs) ──
+  YoutubePlayerController? _youtubeController;
+
   late TabController _tabController;
 
   late int currentLessonIndex;
   bool _isInitialized = false;
   bool _showControls = true;
+  bool _isYouTube = false;
   final TextEditingController _notesController = TextEditingController();
 
-  // Track completion and points
   Set<int> completedLessons = {};
   Map<int, int> lessonPoints = {};
   int totalPoints = 0;
 
-  // NEW: Store loaded lessons from SharedPreferences
   List<Map<String, dynamic>> allLessons = [];
   bool _isLoadingLessons = true;
 
@@ -39,15 +46,16 @@ class _WatchScreenState extends State<WatchScreen>
     super.initState();
     currentLessonIndex = widget.initialLessonIndex;
     _tabController = TabController(length: 4, vsync: this);
-    _loadLessonsFromStorage(); // Load lessons first
+    _loadLessonsFromStorage();
   }
 
-  // NEW: Load lessons from SharedPreferences
+  // ─────────────────────────────────────────────
+  // Load lessons
+  // ─────────────────────────────────────────────
   Future<void> _loadLessonsFromStorage() async {
     setState(() => _isLoadingLessons = true);
     final prefs = await SharedPreferences.getInstance();
 
-    // Load default lessons
     List<Map<String, dynamic>> defaultLessons = [];
     int index = 0;
     for (var lesson in scienceLessons) {
@@ -56,7 +64,6 @@ class _WatchScreenState extends State<WatchScreen>
       index++;
     }
 
-    // Load teacher-created videos
     String? videosJson = prefs.getString('teacher_videos');
     List<Map<String, dynamic>> teacherVideos = [];
     if (videosJson != null) {
@@ -67,12 +74,12 @@ class _WatchScreenState extends State<WatchScreen>
       }
     }
 
-    // Load modified default videos
     String? modifiedJson = prefs.getString('modified_default_videos');
-    Map<String, dynamic> modifiedVideos = {};
     if (modifiedJson != null) {
       try {
-        modifiedVideos = Map<String, dynamic>.from(jsonDecode(modifiedJson));
+        final modifiedVideos = Map<String, dynamic>.from(
+          jsonDecode(modifiedJson),
+        );
         for (int i = 0; i < defaultLessons.length; i++) {
           String id = defaultLessons[i]['id'] as String;
           if (modifiedVideos.containsKey(id)) {
@@ -81,20 +88,15 @@ class _WatchScreenState extends State<WatchScreen>
             defaultLessons[i]['id'] = id;
           }
         }
-      } catch (e) {
-        modifiedVideos = {};
-      }
+      } catch (_) {}
     }
 
-    // Load deleted default videos
     String? deletedJson = prefs.getString('deleted_default_videos');
     List<String> deletedIds = [];
     if (deletedJson != null) {
       try {
         deletedIds = List<String>.from(jsonDecode(deletedJson));
-      } catch (e) {
-        deletedIds = [];
-      }
+      } catch (_) {}
     }
 
     defaultLessons =
@@ -107,14 +109,12 @@ class _WatchScreenState extends State<WatchScreen>
       _isLoadingLessons = false;
     });
 
-    // Load video after lessons are loaded
     if (allLessons.isNotEmpty) {
       _loadVideo(allLessons[currentLessonIndex]['videoUrl'] as String);
       _loadExistingNote();
     }
   }
 
-  // NEW: Convert ScienceLesson to Map
   Map<String, dynamic> _lessonToMap(
     ScienceLesson lesson, {
     bool isDefault = false,
@@ -131,6 +131,7 @@ class _WatchScreenState extends State<WatchScreen>
       'funFact': lesson.funFact,
       'keyTopics': lesson.keyTopics,
       'moreFacts': lesson.moreFacts,
+      'topic': lesson.topic,
       'quizQuestions':
           lesson.quizQuestions
               .map(
@@ -146,67 +147,161 @@ class _WatchScreenState extends State<WatchScreen>
     };
   }
 
+  // ─────────────────────────────────────────────
+  // Load / switch video
+  // ─────────────────────────────────────────────
   void _loadVideo(String url) {
-    if (url.startsWith('lib/assets/videos/')) {
-      _videoController =
-          VideoPlayerController.asset(url)
-            ..initialize().then((_) {
-              setState(() {
-                _isInitialized = true;
-              });
-            })
-            ..addListener(() {
-              if (mounted) {
-                setState(() {
-                  if (_videoController.value.position.inSeconds >
-                          (_videoController.value.duration.inSeconds * 0.9) &&
-                      !completedLessons.contains(currentLessonIndex)) {
-                    _markLessonComplete();
-                  }
-                });
-              }
-            });
+    _disposeAllControllers();
+
+    final sourceType = VideoUploadHelper.getVideoSourceType(url);
+
+    setState(() {
+      _isInitialized = false;
+      _isYouTube = sourceType == VideoSourceType.youtube;
+    });
+
+    if (_isYouTube) {
+      _initYouTubePlayer(url);
     } else {
-      _videoController =
-          VideoPlayerController.networkUrl(Uri.parse(url))
-            ..initialize().then((_) {
-              setState(() {
-                _isInitialized = true;
-              });
-            })
-            ..addListener(() {
-              if (mounted) {
-                setState(() {
-                  if (_videoController.value.position.inSeconds >
-                          (_videoController.value.duration.inSeconds * 0.9) &&
-                      !completedLessons.contains(currentLessonIndex)) {
-                    _markLessonComplete();
-                  }
-                });
-              }
-            });
+      _initRegularPlayer(url, sourceType);
     }
   }
 
-  Future<void> _loadExistingNote() async {
-    if (allLessons.isEmpty) return;
-    final lesson = allLessons[currentLessonIndex];
-    final existingNote = await NotesHelper.getVideoNoteForLesson(
-      lesson['title'] as String,
+  void _disposeAllControllers() {
+    _videoController?.dispose();
+    _videoController = null;
+    _youtubeController?.dispose();
+    _youtubeController = null;
+  }
+
+  // ── YouTube ──
+  void _initYouTubePlayer(String url) {
+    final videoId = VideoUploadHelper.extractYoutubeId(url);
+    if (videoId == null) {
+      _showVideoErrorDialog('Could not extract YouTube video ID from the URL.');
+      return;
+    }
+
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+        enableCaption: true,
+        forceHD: false,
+      ),
+    )..addListener(_youtubeListener);
+
+    setState(() => _isInitialized = true);
+  }
+
+  void _youtubeListener() {
+    if (!mounted) return;
+    final ctrl = _youtubeController;
+    if (ctrl == null) return;
+
+    // Mark complete when 90% watched
+    if (ctrl.value.isReady &&
+        ctrl.metadata.duration.inSeconds > 0 &&
+        ctrl.value.position.inSeconds >
+            ctrl.metadata.duration.inSeconds * 0.9 &&
+        !completedLessons.contains(currentLessonIndex)) {
+      _markLessonComplete();
+    }
+    setState(() {});
+  }
+
+  // ── Regular (asset / network / file) ──
+  void _initRegularPlayer(String url, VideoSourceType sourceType) {
+    VideoPlayerController ctrl;
+
+    switch (sourceType) {
+      case VideoSourceType.asset:
+        ctrl = VideoPlayerController.asset(url);
+        break;
+      case VideoSourceType.network:
+        ctrl = VideoPlayerController.networkUrl(Uri.parse(url));
+        break;
+      case VideoSourceType.file:
+        final file = File(url);
+        if (!file.existsSync()) {
+          _showVideoErrorDialog('Video file not found on device.');
+          return;
+        }
+        ctrl = VideoPlayerController.file(file);
+        break;
+      default:
+        _showVideoErrorDialog('Unsupported video source.');
+        return;
+    }
+
+    _videoController = ctrl;
+
+    ctrl
+        .initialize()
+        .then((_) {
+          if (mounted) setState(() => _isInitialized = true);
+        })
+        .catchError((error) {
+          print('Video init error: $error');
+          if (mounted) {
+            _showVideoErrorDialog(
+              'Failed to load video. Please check the URL or file.',
+            );
+          }
+        });
+
+    ctrl.addListener(_regularVideoListener);
+  }
+
+  void _regularVideoListener() {
+    if (!mounted) return;
+    final ctrl = _videoController;
+    if (ctrl == null || !ctrl.value.isInitialized) return;
+
+    if (ctrl.value.position.inSeconds > ctrl.value.duration.inSeconds * 0.9 &&
+        !completedLessons.contains(currentLessonIndex)) {
+      _markLessonComplete();
+    }
+    setState(() {});
+  }
+
+  void _showVideoErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1C1F3E),
+            title: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Video Error', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(color: Color(0xFF7B4DFF)),
+                ),
+              ),
+            ],
+          ),
     );
-
-    if (existingNote != null) {
-      setState(() {
-        _notesController.text = existingNote;
-      });
-    } else {
-      setState(() {
-        _notesController.clear();
-      });
-    }
   }
 
+  // ─────────────────────────────────────────────
+  // Lesson completion
+  // ─────────────────────────────────────────────
   void _markLessonComplete() {
+    if (completedLessons.contains(currentLessonIndex)) return;
     setState(() {
       completedLessons.add(currentLessonIndex);
       lessonPoints[currentLessonIndex] = 20;
@@ -285,12 +380,25 @@ class _WatchScreenState extends State<WatchScreen>
     );
   }
 
+  // ─────────────────────────────────────────────
+  // Quiz
+  // ─────────────────────────────────────────────
   void _navigateToQuiz() async {
     if (allLessons.isEmpty) return;
-
-    // Convert Map to ScienceLesson for quiz screen
     final lessonMap = allLessons[currentLessonIndex];
     final lesson = _mapToLesson(lessonMap);
+
+    // Guard: no quiz questions for this lesson
+    if (lesson.quizQuestions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No quiz available for this lesson yet.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
 
     final result = await Navigator.push(
       context,
@@ -306,42 +414,61 @@ class _WatchScreenState extends State<WatchScreen>
     }
   }
 
-  // NEW: Convert Map back to ScienceLesson for quiz
   ScienceLesson _mapToLesson(Map<String, dynamic> map) {
+    // Safely parse quizQuestions — teacher videos may have none
+    List<QuizQuestion> parsedQuestions = [];
+    try {
+      final rawQuestions = map['quizQuestions'];
+      if (rawQuestions != null &&
+          rawQuestions is List &&
+          rawQuestions.isNotEmpty) {
+        parsedQuestions =
+            rawQuestions.map((q) {
+              final qMap = q as Map<String, dynamic>;
+              return QuizQuestion(
+                question: (qMap['question'] ?? '') as String,
+                options: List<String>.from(qMap['options'] ?? []),
+                correctAnswer: (qMap['correctAnswer'] ?? 0) as int,
+                explanation: (qMap['explanation'] ?? '') as String,
+                emoji: (qMap['emoji'] ?? '❓') as String,
+              );
+            }).toList();
+      }
+    } catch (e) {
+      print('Error parsing quiz questions: $e');
+      parsedQuestions = [];
+    }
+
     return ScienceLesson(
-      title: map['title'] as String,
-      emoji: map['emoji'] as String,
-      description: map['description'] as String,
-      videoUrl: map['videoUrl'] as String,
-      duration: map['duration'] as String,
+      title: (map['title'] ?? 'Untitled') as String,
+      emoji: (map['emoji'] ?? '🎥') as String,
+      description: (map['description'] ?? '') as String,
+      videoUrl: (map['videoUrl'] ?? '') as String,
+      duration: (map['duration'] ?? '0 min') as String,
       keyTopics: List<String>.from(map['keyTopics'] ?? []),
-      funFact: map['funFact'] as String,
+      funFact: (map['funFact'] ?? '') as String,
       moreFacts: List<String>.from(map['moreFacts'] ?? []),
-      quizQuestions:
-          (map['quizQuestions'] as List)
-              .map(
-                (q) => QuizQuestion(
-                  question: q['question'] as String,
-                  options: List<String>.from(q['options']),
-                  correctAnswer: q['correctAnswer'] as int,
-                  explanation: q['explanation'] as String,
-                  emoji: q['emoji'] as String,
-                ),
-              )
-              .toList(),
+      topic: (map['topic'] ?? 'changes_of_matter') as String,
+      quizQuestions: parsedQuestions,
     );
   }
 
-  void _changeLesson(int newIndex) {
-    if (newIndex >= 0 && newIndex < allLessons.length) {
-      setState(() {
-        currentLessonIndex = newIndex;
-        _isInitialized = false;
-        _videoController.dispose();
-        _loadVideo(allLessons[currentLessonIndex]['videoUrl'] as String);
-        _loadExistingNote();
-      });
-    }
+  // ─────────────────────────────────────────────
+  // Notes
+  // ─────────────────────────────────────────────
+  Future<void> _loadExistingNote() async {
+    if (allLessons.isEmpty) return;
+    final lesson = allLessons[currentLessonIndex];
+    final existingNote = await NotesHelper.getVideoNoteForLesson(
+      lesson['title'] as String,
+    );
+    setState(() {
+      if (existingNote != null) {
+        _notesController.text = existingNote;
+      } else {
+        _notesController.clear();
+      }
+    });
   }
 
   Future<void> _saveNotes() async {
@@ -355,7 +482,6 @@ class _WatchScreenState extends State<WatchScreen>
       );
       return;
     }
-
     if (allLessons.isEmpty) return;
     final lesson = allLessons[currentLessonIndex];
     await NotesHelper.saveVideoNote(
@@ -363,7 +489,6 @@ class _WatchScreenState extends State<WatchScreen>
       content: _notesController.text.trim(),
       lessonEmoji: lesson['emoji'] as String?,
     );
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Notes saved successfully! ✓'),
@@ -373,15 +498,98 @@ class _WatchScreenState extends State<WatchScreen>
     );
   }
 
+  // ─────────────────────────────────────────────
+  // Change lesson
+  // ─────────────────────────────────────────────
+  void _changeLesson(int newIndex) {
+    if (newIndex >= 0 && newIndex < allLessons.length) {
+      setState(() {
+        currentLessonIndex = newIndex;
+        _isInitialized = false;
+      });
+      _loadVideo(allLessons[newIndex]['videoUrl'] as String);
+      _loadExistingNote();
+    }
+  }
+
   @override
   void dispose() {
-    _videoController.dispose();
+    _disposeAllControllers();
     _tabController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
-  Widget _buildVideoControls() {
+  // ─────────────────────────────────────────────
+  // Video widget
+  // ─────────────────────────────────────────────
+
+  /// Builds the correct player widget based on video type
+  Widget _buildVideoPlayer() {
+    if (!_isInitialized) {
+      return const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF7B4DFF)),
+                SizedBox(height: 12),
+                Text(
+                  'Loading video...',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── YouTube Player ──
+    if (_isYouTube && _youtubeController != null) {
+      return YoutubePlayer(
+        controller: _youtubeController!,
+        showVideoProgressIndicator: true,
+        progressIndicatorColor: const Color(0xFF7B4DFF),
+        progressColors: const ProgressBarColors(
+          playedColor: Color(0xFF7B4DFF),
+          handleColor: Color(0xFF7B4DFF),
+          bufferedColor: Colors.white38,
+          backgroundColor: Colors.white24,
+        ),
+        onReady: () {
+          setState(() {});
+        },
+        onEnded: (data) {
+          _markLessonComplete();
+        },
+      );
+    }
+
+    // ── Regular Player ──
+    final ctrl = _videoController;
+    if (ctrl == null || !ctrl.value.isInitialized) {
+      return const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: ColoredBox(color: Colors.black),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => setState(() => _showControls = !_showControls),
+      child: AspectRatio(
+        aspectRatio: ctrl.value.aspectRatio,
+        child: Stack(
+          children: [VideoPlayer(ctrl), _buildRegularControls(ctrl)],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegularControls(VideoPlayerController ctrl) {
     return AnimatedOpacity(
       opacity: _showControls ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 300),
@@ -400,10 +608,11 @@ class _WatchScreenState extends State<WatchScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            const SizedBox(),
             Center(
               child: IconButton(
                 icon: Icon(
-                  _videoController.value.isPlaying
+                  ctrl.value.isPlaying
                       ? Icons.pause_circle_filled
                       : Icons.play_circle_fill,
                   size: 80,
@@ -411,9 +620,7 @@ class _WatchScreenState extends State<WatchScreen>
                 ),
                 onPressed: () {
                   setState(() {
-                    _videoController.value.isPlaying
-                        ? _videoController.pause()
-                        : _videoController.play();
+                    ctrl.value.isPlaying ? ctrl.pause() : ctrl.play();
                   });
                 },
               ),
@@ -423,13 +630,13 @@ class _WatchScreenState extends State<WatchScreen>
               child: Row(
                 children: [
                   Text(
-                    _formatDuration(_videoController.value.position),
+                    _formatDuration(ctrl.value.position),
                     style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: VideoProgressIndicator(
-                      _videoController,
+                      ctrl,
                       allowScrubbing: true,
                       colors: const VideoProgressColors(
                         playedColor: Color(0xFF7B4DFF),
@@ -440,12 +647,8 @@ class _WatchScreenState extends State<WatchScreen>
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _formatDuration(_videoController.value.duration),
+                    _formatDuration(ctrl.value.duration),
                     style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: () {},
                   ),
                 ],
               ),
@@ -456,16 +659,16 @@ class _WatchScreenState extends State<WatchScreen>
     );
   }
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(duration.inMinutes.remainder(60));
-    final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
+  String _formatDuration(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return "${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}";
   }
 
+  // ─────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // NEW: Show loading while lessons are being loaded
     if (_isLoadingLessons || allLessons.isEmpty) {
       return Scaffold(
         backgroundColor: const Color(0xFF0D102C),
@@ -519,6 +722,60 @@ class _WatchScreenState extends State<WatchScreen>
     final progress = completedLessons.length / totalLessons;
     final isCompleted = completedLessons.contains(currentLessonIndex);
 
+    // Wrap in YoutubePlayerBuilder so the YouTube player works correctly
+    // when the screen rotates or is in full-screen mode.
+    Widget body = _buildBody(lesson, totalLessons, progress, isCompleted);
+
+    if (_isYouTube && _youtubeController != null) {
+      return YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          controller: _youtubeController!,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: const Color(0xFF7B4DFF),
+          progressColors: const ProgressBarColors(
+            playedColor: Color(0xFF7B4DFF),
+            handleColor: Color(0xFF7B4DFF),
+            bufferedColor: Colors.white38,
+            backgroundColor: Colors.white24,
+          ),
+          onEnded: (data) => _markLessonComplete(),
+        ),
+        builder:
+            (context, player) => _buildScaffold(
+              lesson,
+              totalLessons,
+              progress,
+              isCompleted,
+              playerWidget: player,
+            ),
+      );
+    }
+
+    return _buildScaffold(
+      lesson,
+      totalLessons,
+      progress,
+      isCompleted,
+      playerWidget: Container(color: Colors.black, child: _buildVideoPlayer()),
+    );
+  }
+
+  Widget _buildBody(
+    Map<String, dynamic> lesson,
+    int totalLessons,
+    double progress,
+    bool isCompleted,
+  ) {
+    return const SizedBox.shrink(); // placeholder — not used directly
+  }
+
+  Scaffold _buildScaffold(
+    Map<String, dynamic> lesson,
+    int totalLessons,
+    double progress,
+    bool isCompleted, {
+    required Widget playerWidget,
+  }) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D102C),
       appBar: AppBar(
@@ -559,48 +816,10 @@ class _WatchScreenState extends State<WatchScreen>
       ),
       body: Column(
         children: [
-          // Video Player
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _showControls = !_showControls;
-              });
-            },
-            child: Container(
-              color: Colors.black,
-              child: AspectRatio(
-                aspectRatio:
-                    _isInitialized
-                        ? _videoController.value.aspectRatio
-                        : 16 / 9,
-                child: Stack(
-                  children: [
-                    Center(
-                      child:
-                          _isInitialized
-                              ? VideoPlayer(_videoController)
-                              : const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  CircularProgressIndicator(
-                                    color: Color(0xFF7B4DFF),
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    "Loading video...",
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                ],
-                              ),
-                    ),
-                    if (_isInitialized) _buildVideoControls(),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // ── Video area ──
+          playerWidget,
 
-          // Content Area
+          // ── Content ──
           Expanded(
             child: Column(
               children: [
@@ -719,12 +938,11 @@ class _WatchScreenState extends State<WatchScreen>
                   ],
                 ),
 
-                // Tab Content
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      // About Tab
+                      // About
                       SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -803,7 +1021,7 @@ class _WatchScreenState extends State<WatchScreen>
                         ),
                       ),
 
-                      // Notes Tab
+                      // Notes
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -840,40 +1058,6 @@ class _WatchScreenState extends State<WatchScreen>
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF7B4DFF,
-                                    ).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: const Color(0xFF7B4DFF),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.save,
-                                        color: Color(0xFF7B4DFF),
-                                        size: 14,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Auto-saved',
-                                        style: TextStyle(
-                                          color: Color(0xFF7B4DFF),
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -888,7 +1072,7 @@ class _WatchScreenState extends State<WatchScreen>
                                 ),
                                 decoration: InputDecoration(
                                   hintText:
-                                      "• What did you find most interesting?\n• What questions do you have?\n• What would you like to learn more about?",
+                                      "• What did you find most interesting?\n• What questions do you have?",
                                   hintStyle: const TextStyle(
                                     color: Colors.white38,
                                   ),
@@ -919,7 +1103,7 @@ class _WatchScreenState extends State<WatchScreen>
                         ),
                       ),
 
-                      // Lessons Tab
+                      // Lessons list
                       ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: allLessons.length,
@@ -976,44 +1160,29 @@ class _WatchScreenState extends State<WatchScreen>
                                       isCurrent
                                           ? FontWeight.bold
                                           : FontWeight.w600,
-                                  fontSize: 15,
                                 ),
                               ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      "Lesson ${index + 1}",
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 12,
-                                      ),
+                              subtitle: Row(
+                                children: [
+                                  Text(
+                                    "Lesson ${index + 1} • ${lessonItem['duration']}",
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
                                     ),
+                                  ),
+                                  if (isLessonCompleted) ...[
                                     const Text(
                                       " • ",
                                       style: TextStyle(color: Colors.white54),
                                     ),
-                                    Text(
-                                      lessonItem['duration'] as String,
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 12,
-                                      ),
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: Color(0xFF4CAF50),
+                                      size: 14,
                                     ),
-                                    if (isLessonCompleted) ...[
-                                      const Text(
-                                        " • ",
-                                        style: TextStyle(color: Colors.white54),
-                                      ),
-                                      const Icon(
-                                        Icons.check_circle,
-                                        color: Color(0xFF4CAF50),
-                                        size: 14,
-                                      ),
-                                    ],
                                   ],
-                                ),
+                                ],
                               ),
                               trailing:
                                   isCurrent
@@ -1032,7 +1201,7 @@ class _WatchScreenState extends State<WatchScreen>
                         },
                       ),
 
-                      // Fun Facts Tab
+                      // Fun Facts
                       SingleChildScrollView(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -1158,7 +1327,6 @@ class _WatchScreenState extends State<WatchScreen>
         ],
       ),
 
-      // Bottom navigation
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: const BoxDecoration(
@@ -1214,31 +1382,24 @@ class _WatchScreenState extends State<WatchScreen>
   }
 }
 
-// ============================================================================
-// NOTES HELPER CLASS
-// ============================================================================
-
+// ─────────────────────────────────────────────────────────────────────────────
+// NOTES HELPER
+// ─────────────────────────────────────────────────────────────────────────────
 class NotesHelper {
-  /// Save a video note
   static Future<void> saveVideoNote({
     required String title,
     required String content,
     String? lessonEmoji,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-
-    // Load existing notes
     String? notesJson = prefs.getString('video_notes');
     List<Map<String, dynamic>> notes = [];
     if (notesJson != null) {
       try {
         notes = List<Map<String, dynamic>>.from(jsonDecode(notesJson));
-      } catch (e) {
-        notes = [];
-      }
+      } catch (_) {}
     }
 
-    // Check if note already exists for this lesson
     int existingIndex = -1;
     for (int i = 0; i < notes.length; i++) {
       if (notes[i]['title']?.contains(title) ?? false) {
@@ -1259,40 +1420,30 @@ class NotesHelper {
     };
 
     if (existingIndex >= 0) {
-      // Update existing note
       notes[existingIndex] = noteData;
     } else {
-      // Add new note
       notes.add(noteData);
     }
 
-    // Save back to preferences
     await prefs.setString('video_notes', jsonEncode(notes));
   }
 
-  /// Get note for current lesson (if exists)
   static Future<String?> getVideoNoteForLesson(String lessonTitle) async {
     final prefs = await SharedPreferences.getInstance();
     String? notesJson = prefs.getString('video_notes');
-
     if (notesJson != null) {
-      List<Map<String, dynamic>> notes = List<Map<String, dynamic>>.from(
-        jsonDecode(notesJson),
-      );
-
+      final notes = List<Map<String, dynamic>>.from(jsonDecode(notesJson));
       for (var note in notes) {
         if (note['title']?.contains(lessonTitle) ?? false) {
           return note['content'];
         }
       }
     }
-
     return null;
   }
 
-  /// Format date helper
   static String _formatDate(DateTime date) {
-    final months = [
+    const months = [
       'Jan',
       'Feb',
       'Mar',

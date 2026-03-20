@@ -5,6 +5,8 @@ import 'package:elearningapp_flutter/screens/read_screen.dart'
     show scienceBooks, spaceBooks, Book;
 import 'package:elearningapp_flutter/data/video_data.dart'
     show scienceLessons, ScienceLesson;
+import 'package:elearningapp_flutter/helpers/video_upload_helper.dart';
+import 'package:elearningapp_flutter/helpers/image_upload_helper.dart';
 
 /// Comprehensive Teacher Content Management Screen
 /// Allows teachers to Create, Read, Update, and Delete content for:
@@ -544,6 +546,18 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
   List<Map<String, dynamic>> allBooks = [];
   bool _isLoading = true;
 
+  final List<Map<String, dynamic>> bookTopics = [
+    {'id': 'changes_of_matter', 'title': 'Changes of Matter', 'emoji': '🧪'},
+    {'id': 'water_cycle', 'title': 'Water Cycle', 'emoji': '💧'},
+    {'id': 'photosynthesis', 'title': 'Photosynthesis', 'emoji': '🌱'},
+    {'id': 'solar_system', 'title': 'Solar System', 'emoji': '🪐'},
+    {
+      'id': 'ecosystem_food_web',
+      'title': 'Ecosystem & Food Web',
+      'emoji': '🦁',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -667,6 +681,10 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
     await prefs.setString('modified_default_books', jsonEncode(modifiedBooks));
   }
 
+  // REPLACE the _showCreateBookDialog method in ReadContentManagement
+  // Add this import at the top of teacher_content_management_screen.dart:
+  // import 'package:elearningapp_flutter/helpers/image_upload_helper.dart';
+
   void _showCreateBookDialog({Map<String, dynamic>? existingBook, int? index}) {
     final isEdit = existingBook != null;
     final titleController = TextEditingController(
@@ -687,226 +705,467 @@ class _ReadContentManagementState extends State<ReadContentManagement> {
     final funFactController = TextEditingController(
       text: existingBook?['funFact'] ?? '',
     );
-    final imageController = TextEditingController(
-      text: existingBook?['image'] ?? 'lib/assets/book_default.png',
-    );
+
+    String selectedTopic = existingBook?['topic'] ?? 'changes_of_matter';
+    bool isUploading = false;
+    String uploadedImagePath = existingBook?['image'] ?? '';
 
     showDialog(
       context: context,
+      barrierDismissible: !isUploading,
       builder:
-          (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1C1F3E),
-            title: Text(
-              isEdit ? 'Edit Book' : 'Create New Book',
-              style: const TextStyle(color: Colors.white),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  backgroundColor: const Color(0xFF1C1F3E),
+                  title: Text(
+                    isEdit ? 'Edit Book' : 'Create New Book',
                     style: const TextStyle(color: Colors.white),
                   ),
-                  TextField(
-                    controller: summaryController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Summary',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextField(
-                    controller: themeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Theme (e.g., Biology, Chemistry)',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextField(
-                    controller: authorController,
-                    decoration: const InputDecoration(
-                      labelText: 'Author',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextField(
-                    controller: readTimeController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Read Time (minutes)',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  TextField(
-                    controller: funFactController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Fun Fact',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4CAF50).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFF4CAF50).withOpacity(0.3),
-                      ),
-                    ),
+                  content: SingleChildScrollView(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.image,
-                              color: Color(0xFF4CAF50),
-                              size: 20,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Book Cover Image',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
                         TextField(
-                          controller: imageController,
+                          controller: titleController,
                           decoration: const InputDecoration(
-                            hintText: 'Enter image URL or file path',
-                            hintStyle: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
+                            labelText: 'Title',
+                            labelStyle: TextStyle(color: Colors.white70),
                             enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: Colors.white54),
                             ),
                           ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        TextField(
+                          controller: summaryController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Summary',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+
+                        // Topic Dropdown
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF4CAF50).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.category,
+                                    color: Color(0xFF4CAF50),
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Topic Category',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                value: selectedTopic,
+                                dropdownColor: const Color(0xFF1C1F3E),
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFF2A2D4E),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                ),
+                                style: const TextStyle(color: Colors.white),
+                                items:
+                                    bookTopics.map((topic) {
+                                      return DropdownMenuItem<String>(
+                                        value: topic['id'] as String,
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              topic['emoji'] as String,
+                                              style: const TextStyle(
+                                                fontSize: 20,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              topic['title'] as String,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    selectedTopic = value!;
+                                  });
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Examples:\n• https://example.com/cover.jpg\n• lib/assets/images/book_cover.png',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 11,
-                            height: 1.4,
+
+                        TextField(
+                          controller: themeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Theme (e.g., Biology, Chemistry)',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        TextField(
+                          controller: authorController,
+                          decoration: const InputDecoration(
+                            labelText: 'Author',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        TextField(
+                          controller: readTimeController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Read Time (minutes)',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        TextField(
+                          controller: funFactController,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            labelText: 'Fun Fact',
+                            labelStyle: TextStyle(color: Colors.white70),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white54),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+
+                        // BOOK COVER IMAGE SECTION - UPLOAD ONLY
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF4CAF50).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(
+                                    Icons.image,
+                                    color: Color(0xFF4CAF50),
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Book Cover Image',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Upload from Device Button
+                              ElevatedButton.icon(
+                                onPressed:
+                                    isUploading
+                                        ? null
+                                        : () async {
+                                          setDialogState(
+                                            () => isUploading = true,
+                                          );
+
+                                          String? imagePath =
+                                              await ImageUploadHelper.pickImageFromDevice();
+
+                                          setDialogState(
+                                            () => isUploading = false,
+                                          );
+
+                                          if (imagePath != null) {
+                                            setDialogState(() {
+                                              uploadedImagePath = imagePath;
+                                            });
+
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Image uploaded successfully! ✓',
+                                                ),
+                                                backgroundColor: Color(
+                                                  0xFF4CAF50,
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                icon:
+                                    isUploading
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                          ),
+                                        )
+                                        : const Icon(Icons.upload_file),
+                                label: Text(
+                                  isUploading
+                                      ? 'Uploading...'
+                                      : 'Upload Cover Image',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4CAF50),
+                                  minimumSize: const Size(double.infinity, 45),
+                                ),
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              // Display current image info
+                              if (uploadedImagePath.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(
+                                      0xFF4CAF50,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFF4CAF50,
+                                      ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        ImageUploadHelper.getImageSourceType(
+                                                  uploadedImagePath,
+                                                ) ==
+                                                ImageSourceType.file
+                                            ? Icons.check_circle
+                                            : Icons.folder,
+                                        color: const Color(0xFF4CAF50),
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          ImageUploadHelper.getImageSourceType(
+                                                    uploadedImagePath,
+                                                  ) ==
+                                                  ImageSourceType.file
+                                              ? '✓ Image uploaded from device'
+                                              : 'Default: ${uploadedImagePath.split('/').last}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF4CAF50),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: Colors.orange.withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        color: Colors.orange,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Please upload a cover image for your book',
+                                          style: TextStyle(
+                                            color: Colors.orange,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Tip: Choose a clear, high-quality image that represents your book well',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.white54),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (titleController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter a book title'),
-                        backgroundColor: Colors.red,
+                  actions: [
+                    TextButton(
+                      onPressed:
+                          isUploading ? null : () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.white54),
                       ),
-                    );
-                    return;
-                  }
-
-                  if (imageController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter an image URL or path'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  final book = {
-                    'id':
-                        existingBook?['id'] ??
-                        DateTime.now().millisecondsSinceEpoch.toString(),
-                    'isDefault': existingBook?['isDefault'] ?? false,
-                    'title': titleController.text,
-                    'summary': summaryController.text,
-                    'theme': themeController.text,
-                    'author': authorController.text,
-                    'readTime': int.tryParse(readTimeController.text) ?? 15,
-                    'funFact': funFactController.text,
-                    'image': imageController.text,
-                    'chapters': existingBook?['chapters'] ?? [],
-                  };
-
-                  setState(() {
-                    if (isEdit && index != null) {
-                      allBooks[index] = book;
-                    } else {
-                      allBooks.add(book);
-                    }
-                  });
-
-                  await _saveBooks();
-                  Navigator.pop(context);
-                  await _loadBooks();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(isEdit ? 'Book updated!' : 'Book created!'),
-                      backgroundColor: Colors.green,
                     ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7B4DFF),
+                    if (isEdit && index != null)
+                      TextButton(
+                        onPressed:
+                            isUploading
+                                ? null
+                                : () {
+                                  Navigator.pop(context);
+                                  _manageChapters(index);
+                                },
+                        child: const Text(
+                          'Manage Chapters',
+                          style: TextStyle(color: Color(0xFF4CAF50)),
+                        ),
+                      ),
+                    ElevatedButton(
+                      onPressed:
+                          isUploading
+                              ? null
+                              : () async {
+                                if (titleController.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please enter a book title',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (uploadedImagePath.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please upload a cover image',
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final book = {
+                                  'id':
+                                      existingBook?['id'] ??
+                                      DateTime.now().millisecondsSinceEpoch
+                                          .toString(),
+                                  'isDefault':
+                                      existingBook?['isDefault'] ?? false,
+                                  'title': titleController.text,
+                                  'summary': summaryController.text,
+                                  'theme': themeController.text,
+                                  'author': authorController.text,
+                                  'readTime':
+                                      int.tryParse(readTimeController.text) ??
+                                      15,
+                                  'funFact': funFactController.text,
+                                  'image': uploadedImagePath,
+                                  'topic': selectedTopic,
+                                  'chapters': existingBook?['chapters'] ?? [],
+                                };
+
+                                setState(() {
+                                  if (isEdit && index != null) {
+                                    allBooks[index] = book;
+                                  } else {
+                                    allBooks.add(book);
+                                  }
+                                });
+
+                                await _saveBooks();
+                                Navigator.pop(context);
+                                await _loadBooks();
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      isEdit
+                                          ? 'Book updated!'
+                                          : 'Book created!',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7B4DFF),
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ],
                 ),
-                child: const Text('Save'),
-              ),
-            ],
           ),
     );
   }
@@ -2204,7 +2463,6 @@ class _QuizQuestionEditorScreenState extends State<QuizQuestionEditorScreen> {
 // ============================================================================
 // WATCH CONTENT MANAGEMENT
 // ============================================================================
-
 class WatchContentManagement extends StatefulWidget {
   const WatchContentManagement({super.key});
 
@@ -2215,6 +2473,18 @@ class WatchContentManagement extends StatefulWidget {
 class _WatchContentManagementState extends State<WatchContentManagement> {
   List<Map<String, dynamic>> allVideos = [];
   bool _isLoading = true;
+
+  final List<Map<String, dynamic>> topics = [
+    {'id': 'changes_of_matter', 'title': 'Changes of Matter', 'emoji': '🧪'},
+    {'id': 'water_cycle', 'title': 'Water Cycle', 'emoji': '💧'},
+    {'id': 'photosynthesis', 'title': 'Photosynthesis', 'emoji': '🌱'},
+    {'id': 'solar_system', 'title': 'Solar System', 'emoji': '🪐'},
+    {
+      'id': 'ecosystem_food_web',
+      'title': 'Ecosystem & Food Web',
+      'emoji': '🦁',
+    },
+  ];
 
   @override
   void initState() {
@@ -2238,6 +2508,7 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
       'funFact': lesson.funFact,
       'keyTopics': lesson.keyTopics,
       'moreFacts': lesson.moreFacts,
+      'topic': lesson.topic,
       'quizQuestions':
           lesson.quizQuestions
               .map(
@@ -2260,8 +2531,9 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
     List<Map<String, dynamic>> defaultVideos = [];
     int index = 0;
     for (var lesson in scienceLessons) {
-      String videoId = 'default_video_$index';
-      defaultVideos.add(_lessonToMap(lesson, isDefault: true, id: videoId));
+      defaultVideos.add(
+        _lessonToMap(lesson, isDefault: true, id: 'default_video_$index'),
+      );
       index++;
     }
 
@@ -2270,27 +2542,24 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
     if (videosJson != null) {
       try {
         teacherVideos = List<Map<String, dynamic>>.from(jsonDecode(videosJson));
-      } catch (e) {
-        teacherVideos = [];
-      }
+      } catch (_) {}
     }
 
     String? modifiedJson = prefs.getString('modified_default_videos');
-    Map<String, dynamic> modifiedVideos = {};
     if (modifiedJson != null) {
       try {
-        modifiedVideos = Map<String, dynamic>.from(jsonDecode(modifiedJson));
+        final modifiedVideos = Map<String, dynamic>.from(
+          jsonDecode(modifiedJson),
+        );
         for (int i = 0; i < defaultVideos.length; i++) {
-          String id = defaultVideos[i]['id'] as String;
+          final id = defaultVideos[i]['id'] as String;
           if (modifiedVideos.containsKey(id)) {
             defaultVideos[i] = modifiedVideos[id] as Map<String, dynamic>;
             defaultVideos[i]['isDefault'] = true;
             defaultVideos[i]['id'] = id;
           }
         }
-      } catch (e) {
-        modifiedVideos = {};
-      }
+      } catch (_) {}
     }
 
     String? deletedJson = prefs.getString('deleted_default_videos');
@@ -2298,15 +2567,10 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
     if (deletedJson != null) {
       try {
         deletedIds = List<String>.from(jsonDecode(deletedJson));
-      } catch (e) {
-        deletedIds = [];
-      }
+      } catch (_) {}
     }
-
     defaultVideos =
-        defaultVideos
-            .where((video) => !deletedIds.contains(video['id']))
-            .toList();
+        defaultVideos.where((v) => !deletedIds.contains(v['id'])).toList();
 
     setState(() {
       allVideos = [...defaultVideos, ...teacherVideos];
@@ -2316,7 +2580,6 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
 
   Future<void> _saveVideos() async {
     final prefs = await SharedPreferences.getInstance();
-
     List<Map<String, dynamic>> teacherVideos = [];
     Map<String, dynamic> modifiedVideos = {};
 
@@ -2327,7 +2590,6 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
         teacherVideos.add(video);
       }
     }
-
     await prefs.setString('teacher_videos', jsonEncode(teacherVideos));
     await prefs.setString(
       'modified_default_videos',
@@ -2335,244 +2597,1238 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
     );
   }
 
+  // ─────────────────────────────────────────────
+  // Quiz question sub-dialog
+  // ─────────────────────────────────────────────
+  Future<Map<String, dynamic>?> _showQuizQuestionDialog({
+    Map<String, dynamic>? existing,
+  }) async {
+    final questionCtrl = TextEditingController(
+      text: existing?['question'] ?? '',
+    );
+    final option0Ctrl = TextEditingController(
+      text: (existing?['options'] as List?)?.elementAtOrNull(0) ?? '',
+    );
+    final option1Ctrl = TextEditingController(
+      text: (existing?['options'] as List?)?.elementAtOrNull(1) ?? '',
+    );
+    final option2Ctrl = TextEditingController(
+      text: (existing?['options'] as List?)?.elementAtOrNull(2) ?? '',
+    );
+    final option3Ctrl = TextEditingController(
+      text: (existing?['options'] as List?)?.elementAtOrNull(3) ?? '',
+    );
+    final explanationCtrl = TextEditingController(
+      text: existing?['explanation'] ?? '',
+    );
+    final emojiCtrl = TextEditingController(text: existing?['emoji'] ?? '❓');
+    int selectedCorrect = existing?['correctAnswer'] ?? 0;
+
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setQ) => Dialog(
+                  backgroundColor: const Color(0xFF12153A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 24,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFFFC107,
+                                ).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.quiz,
+                                color: Color(0xFFFFC107),
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              existing != null
+                                  ? 'Edit Question'
+                                  : 'New Question',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Emoji + Question row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 70,
+                              child: _styledField(
+                                controller: emojiCtrl,
+                                label: 'Emoji',
+                                hint: '❓',
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _styledField(
+                                controller: questionCtrl,
+                                label: 'Question',
+                                hint: 'Type the question here…',
+                                maxLines: 3,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Options
+                        _sectionLabel(
+                          'Answer Options',
+                          Icons.list_alt,
+                          const Color(0xFF4CAF50),
+                        ),
+                        const SizedBox(height: 10),
+                        ...List.generate(4, (i) {
+                          final ctrl =
+                              [
+                                option0Ctrl,
+                                option1Ctrl,
+                                option2Ctrl,
+                                option3Ctrl,
+                              ][i];
+                          final isCorrect = selectedCorrect == i;
+                          return GestureDetector(
+                            onTap: () => setQ(() => selectedCorrect = i),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              margin: const EdgeInsets.only(bottom: 10),
+                              decoration: BoxDecoration(
+                                color:
+                                    isCorrect
+                                        ? const Color(
+                                          0xFF4CAF50,
+                                        ).withOpacity(0.15)
+                                        : const Color(0xFF1C1F3E),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color:
+                                      isCorrect
+                                          ? const Color(0xFF4CAF50)
+                                          : Colors.white24,
+                                  width: isCorrect ? 1.5 : 1,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Letter badge
+                                  Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          isCorrect
+                                              ? const Color(0xFF4CAF50)
+                                              : Colors.white12,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        ['A', 'B', 'C', 'D'][i],
+                                        style: TextStyle(
+                                          color:
+                                              isCorrect
+                                                  ? Colors.white
+                                                  : Colors.white54,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: ctrl,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'Option ${['A', 'B', 'C', 'D'][i]}',
+                                        hintStyle: const TextStyle(
+                                          color: Colors.white38,
+                                          fontSize: 13,
+                                        ),
+                                        border: InputBorder.none,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isCorrect)
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: Color(0xFF4CAF50),
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+
+                        // Correct answer hint
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50).withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF4CAF50).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.touch_app,
+                                color: Color(0xFF4CAF50),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Tap an option to mark it as the correct answer  •  Currently: ${['A', 'B', 'C', 'D'][selectedCorrect]}',
+                                style: const TextStyle(
+                                  color: Color(0xFF4CAF50),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Explanation
+                        _sectionLabel(
+                          'Explanation',
+                          Icons.info_outline,
+                          const Color(0xFF7B4DFF),
+                        ),
+                        const SizedBox(height: 10),
+                        _styledField(
+                          controller: explanationCtrl,
+                          label: 'Explain the correct answer',
+                          hint: 'Why is this the correct answer?',
+                          maxLines: 3,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Actions
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white54,
+                                  side: const BorderSide(color: Colors.white24),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  // Validate
+                                  if (questionCtrl.text.trim().isEmpty) {
+                                    _snack(
+                                      'Please enter the question text',
+                                      Colors.red,
+                                    );
+                                    return;
+                                  }
+                                  final opts = [
+                                    option0Ctrl.text.trim(),
+                                    option1Ctrl.text.trim(),
+                                    option2Ctrl.text.trim(),
+                                    option3Ctrl.text.trim(),
+                                  ];
+                                  if (opts.any((o) => o.isEmpty)) {
+                                    _snack(
+                                      'Please fill in all 4 options',
+                                      Colors.red,
+                                    );
+                                    return;
+                                  }
+                                  if (explanationCtrl.text.trim().isEmpty) {
+                                    _snack(
+                                      'Please add an explanation',
+                                      Colors.red,
+                                    );
+                                    return;
+                                  }
+                                  Navigator.pop(context, {
+                                    'question': questionCtrl.text.trim(),
+                                    'options': opts,
+                                    'correctAnswer': selectedCorrect,
+                                    'explanation': explanationCtrl.text.trim(),
+                                    'emoji':
+                                        emojiCtrl.text.trim().isEmpty
+                                            ? '❓'
+                                            : emojiCtrl.text.trim(),
+                                  });
+                                },
+                                icon: const Icon(Icons.check),
+                                label: const Text(
+                                  'Save Question',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFFC107),
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // Main create/edit video dialog
+  // ─────────────────────────────────────────────
   void _showCreateVideoDialog({
     Map<String, dynamic>? existingVideo,
     int? index,
   }) {
     final isEdit = existingVideo != null;
-    final titleController = TextEditingController(
+
+    final titleCtrl = TextEditingController(
       text: existingVideo?['title'] ?? '',
     );
-    final emojiController = TextEditingController(
+    final emojiCtrl = TextEditingController(
       text: existingVideo?['emoji'] ?? '🎥',
     );
-    final descriptionController = TextEditingController(
+    final descriptionCtrl = TextEditingController(
       text: existingVideo?['description'] ?? '',
     );
-    final videoUrlController = TextEditingController(
+    final videoUrlCtrl = TextEditingController(
       text: existingVideo?['videoUrl'] ?? '',
     );
-    final durationController = TextEditingController(
+    final durationCtrl = TextEditingController(
       text: existingVideo?['duration'] ?? '5 min',
     );
-    final funFactController = TextEditingController(
+    final funFactCtrl = TextEditingController(
       text: existingVideo?['funFact'] ?? '',
     );
 
+    String selectedTopic = existingVideo?['topic'] ?? 'changes_of_matter';
+    bool isUploading = false;
+    String uploadedVideoPath = existingVideo?['videoUrl'] ?? '';
+
+    // Load existing quiz questions (deep-copy so edits don't mutate saved data)
+    List<Map<String, dynamic>> quizQuestions = [];
+    try {
+      final raw = existingVideo?['quizQuestions'];
+      if (raw != null && raw is List) {
+        quizQuestions = List<Map<String, dynamic>>.from(
+          (raw as List).map((q) => Map<String, dynamic>.from(q as Map)),
+        );
+      }
+    } catch (_) {}
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1C1F3E),
-            title: Text(
-              isEdit ? 'Edit Video Lesson' : 'Create New Video Lesson',
-              style: const TextStyle(color: Colors.white),
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Title',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialog) => Dialog(
+                  backgroundColor: const Color(0xFF0D102C),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  TextField(
-                    controller: emojiController,
-                    decoration: const InputDecoration(
-                      labelText: 'Emoji',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
                   ),
-                  TextField(
-                    controller: descriptionController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7B4DFF).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFF7B4DFF).withOpacity(0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ── Dialog header ──
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF1C1F3E),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Icon(
-                              Icons.video_library,
-                              color: Color(0xFF7B4DFF),
-                              size: 20,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF7B4DFF).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                isEdit ? Icons.edit_note : Icons.video_call,
+                                color: const Color(0xFF7B4DFF),
+                                size: 22,
+                              ),
                             ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Video Source',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                isEdit
+                                    ? 'Edit Video Lesson'
+                                    : 'Create Video Lesson',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white54,
+                                size: 20,
+                              ),
+                              onPressed:
+                                  isUploading
+                                      ? null
+                                      : () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ── Scrollable body ──
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Basic info row
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SizedBox(
+                                    width: 75,
+                                    child: _styledField(
+                                      controller: emojiCtrl,
+                                      label: 'Emoji',
+                                      hint: '🎥',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _styledField(
+                                      controller: titleCtrl,
+                                      label: 'Lesson Title *',
+                                      hint: 'e.g. The Water Cycle',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Topic dropdown
+                              _sectionLabel(
+                                'Topic Category',
+                                Icons.category,
+                                const Color(0xFF4CAF50),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1F3E),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: selectedTopic,
+                                    dropdownColor: const Color(0xFF1C1F3E),
+                                    isExpanded: true,
+                                    style: const TextStyle(color: Colors.white),
+                                    items:
+                                        topics.map((t) {
+                                          return DropdownMenuItem<String>(
+                                            value: t['id'] as String,
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  t['emoji'] as String,
+                                                  style: const TextStyle(
+                                                    fontSize: 18,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Text(
+                                                  t['title'] as String,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                    onChanged:
+                                        (v) =>
+                                            setDialog(() => selectedTopic = v!),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Description
+                              _styledField(
+                                controller: descriptionCtrl,
+                                label: 'Description',
+                                hint: 'What will students learn?',
+                                maxLines: 3,
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Video source
+                              _sectionLabel(
+                                'Video Source',
+                                Icons.video_library,
+                                const Color(0xFF7B4DFF),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1F3E),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white12),
+                                ),
+                                child: Column(
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed:
+                                          isUploading
+                                              ? null
+                                              : () async {
+                                                setDialog(
+                                                  () => isUploading = true,
+                                                );
+                                                final path =
+                                                    await VideoUploadHelper.pickVideoFromDevice();
+                                                setDialog(
+                                                  () => isUploading = false,
+                                                );
+                                                if (path != null) {
+                                                  setDialog(() {
+                                                    uploadedVideoPath = path;
+                                                    videoUrlCtrl.text = path;
+                                                  });
+                                                  _snack(
+                                                    'Video uploaded! ✓',
+                                                    const Color(0xFF4CAF50),
+                                                  );
+                                                }
+                                              },
+                                      icon:
+                                          isUploading
+                                              ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                              : const Icon(Icons.upload_file),
+                                      label: Text(
+                                        isUploading
+                                            ? 'Uploading…'
+                                            : 'Upload from Device',
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF7B4DFF,
+                                        ),
+                                        minimumSize: const Size(
+                                          double.infinity,
+                                          44,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: const [
+                                        Expanded(
+                                          child: Divider(color: Colors.white12),
+                                        ),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          child: Text(
+                                            'OR',
+                                            style: TextStyle(
+                                              color: Colors.white38,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Divider(color: Colors.white12),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextField(
+                                      controller: videoUrlCtrl,
+                                      enabled: !isUploading,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'Paste YouTube or video URL',
+                                        hintStyle: const TextStyle(
+                                          color: Colors.white38,
+                                          fontSize: 12,
+                                        ),
+                                        prefixIcon: const Icon(
+                                          Icons.link,
+                                          color: Colors.white38,
+                                          size: 18,
+                                        ),
+                                        filled: true,
+                                        fillColor: const Color(0xFF0D102C),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                              horizontal: 12,
+                                            ),
+                                      ),
+                                      onChanged:
+                                          (v) => setDialog(
+                                            () => uploadedVideoPath = v,
+                                          ),
+                                    ),
+                                    if (uploadedVideoPath.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF4CAF50,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(
+                                              0xFF4CAF50,
+                                            ).withOpacity(0.3),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.check_circle,
+                                              color: Color(0xFF4CAF50),
+                                              size: 14,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                VideoUploadHelper.isYoutubeUrl(
+                                                      uploadedVideoPath,
+                                                    )
+                                                    ? '🎬 YouTube video linked'
+                                                    : uploadedVideoPath
+                                                        .startsWith('/')
+                                                    ? '📱 Device video selected'
+                                                    : '🌐 URL: ${uploadedVideoPath.length > 35 ? '${uploadedVideoPath.substring(0, 35)}…' : uploadedVideoPath}',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF4CAF50),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Duration + Fun Fact
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 110,
+                                    child: _styledField(
+                                      controller: durationCtrl,
+                                      label: 'Duration',
+                                      hint: '5 min',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _styledField(
+                                      controller: funFactCtrl,
+                                      label: 'Fun Fact',
+                                      hint: 'An interesting fact…',
+                                      maxLines: 2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 24),
+
+                              // ─────────────── QUIZ SECTION ───────────────
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C1F3E),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFFFFC107,
+                                    ).withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Quiz header
+                                    Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFFFFC107,
+                                        ).withOpacity(0.08),
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(16),
+                                            ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.quiz,
+                                            color: Color(0xFFFFC107),
+                                            size: 22,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          const Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Quiz Questions',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Students earn +30 pts for completing the quiz',
+                                                  style: TextStyle(
+                                                    color: Colors.white54,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Question count badge
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  quizQuestions.isNotEmpty
+                                                      ? const Color(0xFFFFC107)
+                                                      : Colors.white12,
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              '${quizQuestions.length} Q',
+                                              style: TextStyle(
+                                                color:
+                                                    quizQuestions.isNotEmpty
+                                                        ? Colors.black
+                                                        : Colors.white38,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    // Question list
+                                    if (quizQuestions.isNotEmpty)
+                                      ListView.separated(
+                                        shrinkWrap: true,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          12,
+                                          12,
+                                          12,
+                                          0,
+                                        ),
+                                        itemCount: quizQuestions.length,
+                                        separatorBuilder:
+                                            (_, __) =>
+                                                const SizedBox(height: 8),
+                                        itemBuilder: (context, qi) {
+                                          final q = quizQuestions[qi];
+                                          final opts = List<String>.from(
+                                            q['options'] ?? [],
+                                          );
+                                          final correct =
+                                              (q['correctAnswer'] ?? 0) as int;
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF0D102C),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.white12,
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                // Question row
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                        12,
+                                                        10,
+                                                        8,
+                                                        6,
+                                                      ),
+                                                  child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        q['emoji'] ?? '❓',
+                                                        style: const TextStyle(
+                                                          fontSize: 20,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              'Q${qi + 1}  ${q['question'] ?? ''}',
+                                                              style: const TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                                fontSize: 13,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 4,
+                                                            ),
+                                                            // Show options as chips
+                                                            Wrap(
+                                                              spacing: 6,
+                                                              runSpacing: 4,
+                                                              children: List.generate(opts.length, (
+                                                                oi,
+                                                              ) {
+                                                                final isCorrect =
+                                                                    oi ==
+                                                                    correct;
+                                                                return Container(
+                                                                  padding:
+                                                                      const EdgeInsets.symmetric(
+                                                                        horizontal:
+                                                                            8,
+                                                                        vertical:
+                                                                            3,
+                                                                      ),
+                                                                  decoration: BoxDecoration(
+                                                                    color:
+                                                                        isCorrect
+                                                                            ? const Color(
+                                                                              0xFF4CAF50,
+                                                                            ).withOpacity(
+                                                                              0.15,
+                                                                            )
+                                                                            : Colors.white.withOpacity(
+                                                                              0.05,
+                                                                            ),
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          6,
+                                                                        ),
+                                                                    border: Border.all(
+                                                                      color:
+                                                                          isCorrect
+                                                                              ? const Color(
+                                                                                0xFF4CAF50,
+                                                                              )
+                                                                              : Colors.white12,
+                                                                    ),
+                                                                  ),
+                                                                  child: Text(
+                                                                    '${['A', 'B', 'C', 'D'][oi]}. ${opts[oi]}',
+                                                                    style: TextStyle(
+                                                                      color:
+                                                                          isCorrect
+                                                                              ? const Color(
+                                                                                0xFF4CAF50,
+                                                                              )
+                                                                              : Colors.white54,
+                                                                      fontSize:
+                                                                          11,
+                                                                      fontWeight:
+                                                                          isCorrect
+                                                                              ? FontWeight.bold
+                                                                              : FontWeight.normal,
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              }),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      // Edit / Delete
+                                                      Column(
+                                                        children: [
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.edit,
+                                                              color:
+                                                                  Colors.blue,
+                                                              size: 18,
+                                                            ),
+                                                            padding:
+                                                                EdgeInsets.zero,
+                                                            constraints:
+                                                                const BoxConstraints(),
+                                                            onPressed: () async {
+                                                              final updated =
+                                                                  await _showQuizQuestionDialog(
+                                                                    existing: q,
+                                                                  );
+                                                              if (updated !=
+                                                                  null) {
+                                                                setDialog(() {
+                                                                  quizQuestions[qi] =
+                                                                      updated;
+                                                                });
+                                                              }
+                                                            },
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          IconButton(
+                                                            icon: const Icon(
+                                                              Icons.delete,
+                                                              color: Colors.red,
+                                                              size: 18,
+                                                            ),
+                                                            padding:
+                                                                EdgeInsets.zero,
+                                                            constraints:
+                                                                const BoxConstraints(),
+                                                            onPressed:
+                                                                () => setDialog(
+                                                                  () => quizQuestions
+                                                                      .removeAt(
+                                                                        qi,
+                                                                      ),
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+
+                                    // Add question button
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final newQ =
+                                              await _showQuizQuestionDialog();
+                                          if (newQ != null) {
+                                            setDialog(
+                                              () => quizQuestions.add(newQ),
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(
+                                          Icons.add_circle_outline,
+                                          color: Color(0xFFFFC107),
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          quizQuestions.isEmpty
+                                              ? 'Add First Question'
+                                              : 'Add Another Question',
+                                          style: const TextStyle(
+                                            color: Color(0xFFFFC107),
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: const BorderSide(
+                                            color: Color(0xFFFFC107),
+                                            width: 1.2,
+                                          ),
+                                          minimumSize: const Size(
+                                            double.infinity,
+                                            44,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // ── Footer actions ──
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF1C1F3E),
+                          borderRadius: BorderRadius.vertical(
+                            bottom: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed:
+                                    isUploading
+                                        ? null
+                                        : () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white54,
+                                  side: const BorderSide(color: Colors.white24),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: const Text('Cancel'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed:
+                                    isUploading
+                                        ? null
+                                        : () async {
+                                          if (titleCtrl.text.trim().isEmpty) {
+                                            _snack(
+                                              'Please enter a title',
+                                              Colors.red,
+                                            );
+                                            return;
+                                          }
+                                          if (videoUrlCtrl.text
+                                              .trim()
+                                              .isEmpty) {
+                                            _snack(
+                                              'Please add a video URL or upload a file',
+                                              Colors.red,
+                                            );
+                                            return;
+                                          }
+
+                                          final video = {
+                                            'id':
+                                                existingVideo?['id'] ??
+                                                DateTime.now()
+                                                    .millisecondsSinceEpoch
+                                                    .toString(),
+                                            'isDefault':
+                                                existingVideo?['isDefault'] ??
+                                                false,
+                                            'title': titleCtrl.text.trim(),
+                                            'emoji':
+                                                emojiCtrl.text.trim().isEmpty
+                                                    ? '🎥'
+                                                    : emojiCtrl.text.trim(),
+                                            'description':
+                                                descriptionCtrl.text.trim(),
+                                            'videoUrl':
+                                                videoUrlCtrl.text.trim(),
+                                            'duration':
+                                                durationCtrl.text.trim(),
+                                            'funFact': funFactCtrl.text.trim(),
+                                            'topic': selectedTopic,
+                                            'keyTopics':
+                                                existingVideo?['keyTopics'] ??
+                                                [],
+                                            'moreFacts':
+                                                existingVideo?['moreFacts'] ??
+                                                [],
+                                            'quizQuestions': quizQuestions,
+                                          };
+
+                                          setState(() {
+                                            if (isEdit && index != null) {
+                                              allVideos[index] = video;
+                                            } else {
+                                              allVideos.add(video);
+                                            }
+                                          });
+
+                                          await _saveVideos();
+                                          Navigator.pop(context);
+                                          await _loadVideos();
+
+                                          _snack(
+                                            isEdit
+                                                ? '✓ Lesson updated!'
+                                                : '✓ Lesson created with ${quizQuestions.length} quiz question${quizQuestions.length == 1 ? '' : 's'}!',
+                                            const Color(0xFF4CAF50),
+                                          );
+                                        },
+                                icon: const Icon(Icons.save),
+                                label: Text(
+                                  isEdit ? 'Save Changes' : 'Create Lesson',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF7B4DFF),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: videoUrlController,
-                          decoration: const InputDecoration(
-                            hintText:
-                                'Enter YouTube URL, video URL, or file path',
-                            hintStyle: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                            enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.white54),
-                            ),
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Examples:\n• https://www.youtube.com/watch?v=...\n• https://example.com/video.mp4\n• lib/assets/videos/science.mp4',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 11,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: durationController,
-                    decoration: const InputDecoration(
-                      labelText: 'Duration (e.g., 5 min)',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
                       ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
+                    ],
                   ),
-                  TextField(
-                    controller: funFactController,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Fun Fact',
-                      labelStyle: TextStyle(color: Colors.white70),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white54),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(color: Colors.white54),
                 ),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (titleController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter a video title'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  if (videoUrlController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter a video URL or path'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  final video = {
-                    'id':
-                        existingVideo?['id'] ??
-                        DateTime.now().millisecondsSinceEpoch.toString(),
-                    'isDefault': existingVideo?['isDefault'] ?? false,
-                    'title': titleController.text,
-                    'emoji': emojiController.text,
-                    'description': descriptionController.text,
-                    'videoUrl': videoUrlController.text,
-                    'duration': durationController.text,
-                    'funFact': funFactController.text,
-                    'keyTopics': existingVideo?['keyTopics'] ?? [],
-                    'moreFacts': existingVideo?['moreFacts'] ?? [],
-                    'quizQuestions': existingVideo?['quizQuestions'] ?? [],
-                  };
-
-                  setState(() {
-                    if (isEdit && index != null) {
-                      allVideos[index] = video;
-                    } else {
-                      allVideos.add(video);
-                    }
-                  });
-
-                  await _saveVideos();
-                  Navigator.pop(context);
-                  await _loadVideos();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        isEdit ? 'Video updated!' : 'Video created!',
-                      ),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7B4DFF),
-                ),
-                child: const Text('Save'),
-              ),
-            ],
           ),
     );
   }
 
-  void _deleteVideo(int index) async {
+  // ─────────────────────────────────────────────
+  // Delete video
+  // ─────────────────────────────────────────────
+  void _deleteVideo(int index) {
     final video = allVideos[index];
     final isDefault = video['isDefault'] == true;
 
@@ -2581,12 +3837,15 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
       builder:
           (context) => AlertDialog(
             backgroundColor: const Color(0xFF1C1F3E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: const Text(
               'Delete Video?',
               style: TextStyle(color: Colors.white),
             ),
             content: Text(
-              'Are you sure you want to permanently delete "${video['title']}"?',
+              'Are you sure you want to delete "${video['title']}"? This cannot be undone.',
               style: const TextStyle(color: Colors.white70),
             ),
             actions: [
@@ -2597,11 +3856,9 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                   style: TextStyle(color: Colors.white54),
                 ),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () async {
-                  setState(() {
-                    allVideos.removeAt(index);
-                  });
+                  setState(() => allVideos.removeAt(index));
 
                   if (isDefault) {
                     final prefs = await SharedPreferences.getInstance();
@@ -2612,9 +3869,7 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                     if (deletedJson != null) {
                       try {
                         deletedIds = List<String>.from(jsonDecode(deletedJson));
-                      } catch (e) {
-                        deletedIds = [];
-                      }
+                      } catch (_) {}
                     }
                     deletedIds.add(video['id'] as String);
                     await prefs.setString(
@@ -2626,22 +3881,90 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                   await _saveVideos();
                   Navigator.pop(context);
                   await _loadVideos();
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Video deleted!'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  _snack('Video deleted', Colors.red);
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Delete'),
+                icon: const Icon(Icons.delete, size: 18),
+                label: const Text('Delete'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ],
           ),
     );
   }
 
+  // ─────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Shared styled text field widget
+  Widget _styledField({
+    required TextEditingController controller,
+    required String label,
+    String? hint,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
+        filled: true,
+        fillColor: const Color(0xFF1C1F3E),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF7B4DFF), width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text, IconData icon, Color color) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -2650,46 +3973,62 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
       );
     }
 
-    List<Map<String, dynamic>> defaultVideosList =
-        allVideos.where((v) => v['isDefault'] == true).toList();
-    List<Map<String, dynamic>> teacherVideosList =
-        allVideos.where((v) => v['isDefault'] != true).toList();
+    final defaultCount = allVideos.where((v) => v['isDefault'] == true).length;
+    final teacherCount = allVideos.length - defaultCount;
 
     return Column(
       children: [
+        // Header
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Video Lessons (${allVideos.length})',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Video Lessons (${allVideos.length})',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${defaultVideosList.length} Default • ${teacherVideosList.length} Created',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      '$defaultCount Default  •  $teacherCount Created',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               ElevatedButton.icon(
                 onPressed: () => _showCreateVideoDialog(),
-                icon: const Icon(Icons.add),
-                label: const Text('Create Video'),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text(
+                  'Create',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7B4DFF),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+
+        // List
         Expanded(
           child:
               allVideos.isEmpty
@@ -2700,129 +4039,249 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
                         const Icon(
                           Icons.play_circle_outline,
                           size: 64,
-                          color: Colors.white54,
+                          color: Colors.white24,
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'No video lessons available',
+                          'No video lessons yet',
                           style: TextStyle(color: Colors.white54, fontSize: 16),
                         ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
                           onPressed: () => _showCreateVideoDialog(),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create First Lesson'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF7B4DFF),
                           ),
-                          child: const Text('Create Your First Video'),
                         ),
                       ],
                     ),
                   )
                   : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: allVideos.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemBuilder: (context, index) {
-                      final video = allVideos[index];
+                    itemBuilder: (context, i) {
+                      final video = allVideos[i];
                       final isDefault = video['isDefault'] == true;
+                      final quizCount =
+                          (video['quizQuestions'] as List?)?.length ?? 0;
+
                       return Card(
                         color: const Color(0xFF1C1F3E),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: ListTile(
-                          leading: Stack(
-                            children: [
-                              Text(
-                                video['emoji'] ?? '🎥',
-                                style: const TextStyle(fontSize: 32),
-                              ),
-                              if (isDefault)
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.orange,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.star,
-                                      size: 10,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                            ],
+                        margin: const EdgeInsets.only(bottom: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          title: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  video['title'] ?? 'Untitled',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              if (isDefault)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Default',
-                                    style: TextStyle(
-                                      color: Colors.orange,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          subtitle: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                video['description'] ?? 'No description',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white70),
-                              ),
-                              Text(
-                                'Duration: ${video['duration'] ?? 'N/A'}',
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.edit,
-                                  color: Colors.blue,
-                                ),
-                                onPressed:
-                                    () => _showCreateVideoDialog(
-                                      existingVideo: video,
-                                      index: index,
+                              // Emoji with badge
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2A2D4E),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
+                                    child: Center(
+                                      child: Text(
+                                        video['emoji'] ?? '🎥',
+                                        style: const TextStyle(fontSize: 26),
+                                      ),
+                                    ),
+                                  ),
+                                  if (isDefault)
+                                    Positioned(
+                                      top: -4,
+                                      right: -4,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.orange,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.star,
+                                          size: 9,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete,
-                                  color: Colors.red,
+                              const SizedBox(width: 12),
+
+                              // Info
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            video['title'] ?? 'Untitled',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                        if (isDefault)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withOpacity(
+                                                0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(4),
+                                            ),
+                                            child: const Text(
+                                              'Default',
+                                              style: TextStyle(
+                                                color: Colors.orange,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      video['description'] ?? 'No description',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.access_time,
+                                          color: Colors.white38,
+                                          size: 12,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          video['duration'] ?? 'N/A',
+                                          style: const TextStyle(
+                                            color: Colors.white38,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Quiz badge
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                quizCount > 0
+                                                    ? const Color(
+                                                      0xFFFFC107,
+                                                    ).withOpacity(0.15)
+                                                    : Colors.white.withOpacity(
+                                                      0.05,
+                                                    ),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  quizCount > 0
+                                                      ? const Color(
+                                                        0xFFFFC107,
+                                                      ).withOpacity(0.4)
+                                                      : Colors.white12,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.quiz,
+                                                size: 11,
+                                                color:
+                                                    quizCount > 0
+                                                        ? const Color(
+                                                          0xFFFFC107,
+                                                        )
+                                                        : Colors.white24,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '$quizCount quiz Q',
+                                                style: TextStyle(
+                                                  color:
+                                                      quizCount > 0
+                                                          ? const Color(
+                                                            0xFFFFC107,
+                                                          )
+                                                          : Colors.white24,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                onPressed: () => _deleteVideo(index),
+                              ),
+
+                              // Edit / Delete
+                              Column(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF64B5F6),
+                                      size: 20,
+                                    ),
+                                    onPressed:
+                                        () => _showCreateVideoDialog(
+                                          existingVideo: video,
+                                          index: i,
+                                        ),
+                                    tooltip: 'Edit',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(6),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Color(0xFFEF5350),
+                                      size: 20,
+                                    ),
+                                    onPressed: () => _deleteVideo(i),
+                                    tooltip: 'Delete',
+                                    constraints: const BoxConstraints(),
+                                    padding: const EdgeInsets.all(6),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -2833,6 +4292,14 @@ class _WatchContentManagementState extends State<WatchContentManagement> {
         ),
       ],
     );
+  }
+}
+
+// Helper extension used above
+extension ListExtension<T> on List<T> {
+  T? elementAtOrNull(int index) {
+    if (index < 0 || index >= length) return null;
+    return this[index];
   }
 }
 

@@ -1,28 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-
-// Ensure these paths match your project structure exactly
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:elearningapp_flutter/services/firebase_services.dart';
+import 'package:elearningapp_flutter/screens/role_navigation.dart';
 import 'package:elearningapp_flutter/screens/student_signup_screen.dart';
 import 'package:elearningapp_flutter/screens/forgot_password_screen.dart';
-import 'package:elearningapp_flutter/screens/role_navigation.dart';
 import 'package:elearningapp_flutter/admin/admin_panel_screen.dart';
 
-// --- Theme Constants ---
 const Color kPrimaryColor = Color(0xFF0D102C);
 const Color kAccentColor = Color(0xFFFFC107);
 const Color kButtonColor = Color(0xFF7B4DFF);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   void _showErrorDialog(String message) {
     showDialog(
@@ -31,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
           (_) => AlertDialog(
             backgroundColor: const Color(0xFF1C1F3E),
             title: const Text(
-              "Login Failed",
+              'Login Failed',
               style: TextStyle(color: Colors.white),
             ),
             content: Text(
@@ -42,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  "OK",
+                  'OK',
                   style: TextStyle(color: Colors.purpleAccent),
                 ),
               ),
@@ -51,191 +48,71 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _promptDisplayName(String username, String role) async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // Teachers don't need a leaderboard name - go directly to navigation
-    if (role == "teacher") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RoleNavigation(role: role, username: username),
-        ),
-      );
-      return;
-    }
-
-    // For students only - check if display name already exists
-    String? existingDisplayName = prefs.getString("display_name_$username");
-
-    // If display name already exists, go directly to navigation
-    if (existingDisplayName != null && existingDisplayName.isNotEmpty) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RoleNavigation(role: role, username: username),
-        ),
-      );
-      return;
-    }
-
-    // Show dialog to get display name for students
-    final nameController = TextEditingController();
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1C1F3E),
-            title: const Text(
-              "Enter Your Leaderboard Name",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "This name will be displayed on the leaderboard.",
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: "Display Name",
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintText: "Enter your preferred name",
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: const Color(0xFF2A1B4A),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
-                        color: kButtonColor,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  String displayName = nameController.text.trim();
-                  if (displayName.isEmpty) {
-                    displayName = username; // Fallback to username if empty
-                  }
-                  prefs.setString("display_name_$username", displayName);
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (context) =>
-                              RoleNavigation(role: role, username: username),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: kButtonColor),
-                child: const Text("Continue"),
-              ),
-            ],
-          ),
-    );
-  }
-
   Future<void> _login() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    String username = _usernameController.text.trim();
-    String password = _passwordController.text;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      _showErrorDialog("Please enter both username and password.");
+      _showErrorDialog('Please enter both username and password.');
       return;
     }
 
-    // 1. CHECK ADMIN ACCOUNT FIRST
-    String adminUsername =
-        prefs.getString('admin_username') ?? "Admin_SciLearn";
-    String adminPassword = prefs.getString('admin_password') ?? "Admin@2026";
+    setState(() => _isLoading = true);
 
-    if (username == adminUsername && password == adminPassword) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AdminPanelScreen()),
-      );
-      return;
-    }
+    try {
+      // Sign in via Firebase Auth
+      await FirebaseService.signIn(username: username, password: password);
+      final uid = FirebaseService.currentUser!.uid;
 
-    // 2. CHECK TEACHERS LIST
-    String? teachersJson = prefs.getString('teachers_list');
-    if (teachersJson != null) {
-      List<dynamic> teachers = jsonDecode(teachersJson);
-      for (var teacher in teachers) {
-        if (teacher['username'] == username &&
-            teacher['password'] == password) {
-          // Check if account is active
-          if (teacher['isActive'] == false) {
-            _showErrorDialog(
-              "Your account has been deactivated. Please contact the administrator.",
-            );
-            return;
-          }
-          await _promptDisplayName(username, "teacher");
-          return;
-        }
+      // Fetch Firestore profile
+      final profile = await FirebaseService.getUserProfile(uid);
+
+      if (profile == null) {
+        _showErrorDialog(
+          'Account data not found. Please contact the administrator.',
+        );
+        await FirebaseService.signOut();
+        return;
       }
-    }
 
-    // 3. CHECK HARDCODED TEACHER (for backward compatibility)
-    if (username == "Teacher_Science" && password == "SciLearn2026") {
-      await _promptDisplayName(username, "teacher");
-      return;
-    }
-
-    // 4. CHECK STUDENTS LIST
-    String? studentsJson = prefs.getString('students_list');
-    if (studentsJson != null) {
-      List<dynamic> students = jsonDecode(studentsJson);
-      for (var student in students) {
-        if (student['username'] == username &&
-            student['password'] == password) {
-          // Check if account is active
-          if (student['isActive'] == false) {
-            _showErrorDialog(
-              "Your account has been deactivated. Please contact the administrator.",
-            );
-            return;
-          }
-          await _promptDisplayName(username, "student");
-          return;
-        }
+      if (profile['isActive'] == false) {
+        _showErrorDialog(
+          'Your account has been deactivated. '
+          'Please contact the administrator.',
+        );
+        await FirebaseService.signOut();
+        return;
       }
+
+      final role = profile['role'] as String;
+      if (!mounted) return;
+
+      if (role == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminPanelScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RoleNavigation(role: role, username: username),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Invalid username or password.';
+      if (e.code == 'user-not-found')
+        msg = 'No account found with that username.';
+      if (e.code == 'wrong-password') msg = 'Incorrect password.';
+      if (e.code == 'too-many-requests')
+        msg = 'Too many failed attempts. Try again later.';
+      _showErrorDialog(msg);
+    } catch (e) {
+      _showErrorDialog('An error occurred. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    // 5. CHECK INDIVIDUAL STUDENT (from signup screen for backward compatibility)
-    String savedUsername = prefs.getString("username") ?? "";
-    String savedPassword = prefs.getString("password") ?? "";
-    String savedRole = prefs.getString("role") ?? "student";
-
-    if (username == savedUsername && password == savedPassword) {
-      await _promptDisplayName(username, savedRole);
-      return;
-    }
-
-    // If we get here, credentials are invalid
-    _showErrorDialog("Invalid username or password.");
   }
 
   @override
@@ -249,11 +126,12 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                "SciLearn",
+                'SciLearn',
                 style: TextStyle(
                   fontSize: 48,
                   fontWeight: FontWeight.w900,
                   color: kAccentColor,
+                  letterSpacing: 2,
                   shadows: [
                     Shadow(
                       blurRadius: 10.0,
@@ -261,11 +139,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       offset: Offset(0, 0),
                     ),
                   ],
-                  letterSpacing: 2,
                 ),
               ),
               const Text(
-                "Science Learning Platform",
+                'Science Learning Platform',
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 14,
@@ -273,13 +150,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-
-              // Image asset
-              Image.asset("lib/assets/owl.png", height: 120),
-
+              Image.asset('lib/assets/owl.png', height: 120),
               const SizedBox(height: 20),
               const Text(
-                "Welcome Back!",
+                'Welcome Back!',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -288,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                "Log in to continue your learning adventure",
+                'Log in to continue your learning adventure',
                 style: TextStyle(color: Colors.white70, fontSize: 16),
                 textAlign: TextAlign.center,
               ),
@@ -299,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: _usernameController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: "Username",
+                  labelText: 'Username',
                   labelStyle: const TextStyle(color: Colors.white70),
                   filled: true,
                   fillColor: const Color(0xFF1C1F3E),
@@ -319,10 +193,10 @@ class _LoginScreenState extends State<LoginScreen> {
               // Password Field
               TextField(
                 controller: _passwordController,
-                style: const TextStyle(color: Colors.white),
                 obscureText: true,
+                style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: "Password",
+                  labelText: 'Password',
                   labelStyle: const TextStyle(color: Colors.white70),
                   filled: true,
                   fillColor: const Color(0xFF1C1F3E),
@@ -344,7 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton(
-                  onPressed: _login,
+                  onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kButtonColor,
                     shape: RoundedRectangleBorder(
@@ -352,41 +226,42 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     elevation: 5,
                   ),
-                  child: const Text(
-                    "Login",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child:
+                      _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                            'Login',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                 ),
               ),
 
               const SizedBox(height: 30),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ForgotPasswordScreen(),
+                onPressed:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordScreen(),
+                      ),
                     ),
-                  );
-                },
                 child: const Text(
-                  "Forgot Password?",
+                  'Forgot Password?',
                   style: TextStyle(color: Colors.purpleAccent, fontSize: 16),
                 ),
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const StudentSignupScreen(),
+                onPressed:
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const StudentSignupScreen(),
+                      ),
                     ),
-                  );
-                },
                 child: const Text(
                   "Don't have an account? Sign Up",
                   style: TextStyle(color: Colors.white70, fontSize: 16),
