@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:elearningapp_flutter/services/firebase_services.dart';
 import 'package:elearningapp_flutter/screens/login_screen.dart';
 
 // Theme Constants
@@ -37,121 +38,65 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
   }
 
   Future<void> _loadMessages() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? messagesJson = prefs.getString('admin_messages');
-
-    if (messagesJson != null) {
-      List<dynamic> decoded = jsonDecode(messagesJson);
-      List<Map<String, dynamic>> allMessages =
-          decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-
-      // Filter to show only messages sent to "Admin"
-      _messages = allMessages.where((m) => m['to'] == 'Admin').toList();
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('messages')
+              .where('to', isEqualTo: 'Admin')
+              .get(); // ← removed orderBy
+      setState(() {
+        _messages =
+            snapshot.docs
+                .map((doc) => {...doc.data(), 'docId': doc.id})
+                .toList();
+        // sort in memory instead
+        _messages.sort(
+          (a, b) =>
+              (b['timestamp'] as String).compareTo(a['timestamp'] as String),
+        );
+      });
+      debugPrint('✅ Messages: ${_messages.length}');
+    } catch (e) {
+      debugPrint('❌ Error: $e');
     }
-
-    setState(() {});
-  }
-
-  Future<void> _saveMessages(List<Map<String, dynamic>> allMessages) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('admin_messages', jsonEncode(allMessages));
   }
 
   Future<void> _loadUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // Load teachers
-    String? teachersJson = prefs.getString('teachers_list');
-    if (teachersJson != null) {
-      List<dynamic> decoded = jsonDecode(teachersJson);
-      _teachers = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-    }
-
-    // Load students
-    String? studentsJson = prefs.getString('students_list');
-    if (studentsJson != null) {
-      List<dynamic> decoded = jsonDecode(studentsJson);
-      _students = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-    }
-
-    // Also check if there's a student registered via the signup screen
-    String? individualUsername = prefs.getString('username');
-    String? individualPassword = prefs.getString('password');
-    String? individualName = prefs.getString('name');
-    String? individualSection = prefs.getString('section');
-
-    if (individualUsername != null && individualPassword != null) {
-      bool alreadyExists = _students.any(
-        (s) => s['username'] == individualUsername,
-      );
-      if (!alreadyExists) {
-        _students.add({
-          'username': individualUsername,
-          'password': individualPassword,
-
-          'email': '',
-          'section': individualSection ?? 'N/A',
-          'role': 'student',
-          'isActive': true,
-          'createdAt': DateTime.now().toIso8601String(),
-          'source': 'signup',
-        });
-        await _saveUsers();
-      }
-    }
-
-    setState(() {});
-  }
-
-  Future<void> _saveUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('teachers_list', jsonEncode(_teachers));
-    await prefs.setString('students_list', jsonEncode(_students));
+    final teachers = await FirebaseService.getUsersByRole('teacher');
+    final students = await FirebaseService.getUsersByRole('student');
+    setState(() {
+      _teachers = teachers;
+      _students = students;
+    });
   }
 
   Future<void> _loadAdminSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final uid = FirebaseService.currentUser!.uid;
+    final profile = await FirebaseService.getUserProfile(uid);
     setState(() {
-      _adminUsername = prefs.getString('admin_username') ?? "Admin_SciLearn";
-      _adminPassword = prefs.getString('admin_password') ?? "Admin@2026";
-      _adminEmail = prefs.getString('admin_email') ?? "admin@scilearn.com";
-      _allowStudentSignup = prefs.getBool('allow_student_signup') ?? true;
-      _requireEmailVerification =
-          prefs.getBool('require_email_verification') ?? false;
+      _adminUsername = profile?['username'] ?? 'Admin_SciLearn';
+      _adminEmail = profile?['email'] ?? 'admin@scilearn.com';
+      // password never loaded — Firebase Auth handles it
+      _allowStudentSignup = profile?['allowStudentSignup'] ?? true;
+      _requireEmailVerification = profile?['requireEmailVerification'] ?? false;
     });
   }
 
   Future<void> _saveAdminSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('admin_username', _adminUsername);
-    await prefs.setString('admin_password', _adminPassword);
-    await prefs.setString('admin_email', _adminEmail);
-    await prefs.setBool('allow_student_signup', _allowStudentSignup);
-    await prefs.setBool(
-      'require_email_verification',
-      _requireEmailVerification,
-    );
+    final uid = FirebaseService.currentUser!.uid;
+    await FirebaseService.updateUserProfile(uid, {
+      'allowStudentSignup': _allowStudentSignup,
+      'requireEmailVerification': _requireEmailVerification,
+    });
   }
 
   void _markMessageAsRead(Map<String, dynamic> message) async {
-    final prefs = await SharedPreferences.getInstance();
-    String? messagesJson = prefs.getString('admin_messages');
-
-    if (messagesJson != null) {
-      List<dynamic> decoded = jsonDecode(messagesJson);
-      List<Map<String, dynamic>> allMessages =
-          decoded.map((e) => Map<String, dynamic>.from(e)).toList();
-
-      // Find and update the message
-      int index = allMessages.indexWhere((m) => m['id'] == message['id']);
-      if (index != -1) {
-        allMessages[index]['isRead'] = true;
-        await _saveMessages(allMessages);
-        setState(() {
-          message['isRead'] = true;
-        });
-      }
-    }
+    final docId = message['docId'] as String?;
+    if (docId == null) return;
+    await FirebaseFirestore.instance.collection('messages').doc(docId).update({
+      'isRead': true,
+    });
+    setState(() => message['isRead'] = true);
   }
 
   void _deleteMessage(Map<String, dynamic> message) {
@@ -178,24 +123,14 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  String? messagesJson = prefs.getString('admin_messages');
-
-                  if (messagesJson != null) {
-                    List<dynamic> decoded = jsonDecode(messagesJson);
-                    List<Map<String, dynamic>> allMessages =
-                        decoded
-                            .map((e) => Map<String, dynamic>.from(e))
-                            .toList();
-
-                    allMessages.removeWhere((m) => m['id'] == message['id']);
-                    await _saveMessages(allMessages);
-
-                    setState(() {
-                      _messages.remove(message);
-                    });
+                  final docId = message['docId'] as String?;
+                  if (docId != null) {
+                    await FirebaseFirestore.instance
+                        .collection('messages')
+                        .doc(docId)
+                        .delete();
                   }
-
+                  setState(() => _messages.remove(message));
                   Navigator.pop(context);
                   _showMessage('Message deleted');
                 },
@@ -232,26 +167,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  final prefs = await SharedPreferences.getInstance();
-
-                  // Remove from SharedPreferences
-                  if (userType == 'Teacher') {
-                    await prefs.remove("teacher_name_${user['username']}");
-                  } else {
-                    await prefs.remove("student_name_${user['username']}");
+                  try {
+                    await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user['uid'] as String)
+                        .delete();
+                    await _loadUsers();
+                    Navigator.pop(context);
+                    _showMessage('$userType deleted successfully');
+                  } catch (e) {
+                    _showMessage('Failed to delete $userType.');
                   }
-
-                  setState(() {
-                    if (userType == 'Teacher') {
-                      _teachers.remove(user);
-                    } else {
-                      _students.remove(user);
-                    }
-                  });
-
-                  _saveUsers();
-                  Navigator.pop(context);
-                  _showMessage('$userType deleted successfully');
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 child: const Text('Delete'),
@@ -586,21 +512,18 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Full Name field
                         _buildDialogTextField(
                           fullNameController,
                           'Full Name',
                           Icons.person,
                         ),
                         const SizedBox(height: 12),
-
                         _buildDialogTextField(
                           usernameController,
                           'Username',
                           Icons.account_circle,
                         ),
                         const SizedBox(height: 12),
-
                         _buildDialogTextField(
                           passwordController,
                           'Password',
@@ -608,14 +531,11 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           obscure: true,
                         ),
                         const SizedBox(height: 12),
-
                         _buildDialogTextField(
                           emailController,
                           'Email',
                           Icons.email,
                         ),
-
-                        // Display Name only for Students
                         if (userType == 'Student') ...[
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
@@ -653,14 +573,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                                 ),
                           ),
                           const SizedBox(height: 12),
-
                           _buildDialogTextField(
                             studentIdController,
                             'Student ID',
                             Icons.badge,
                           ),
                           const SizedBox(height: 12),
-
                           _buildDialogTextField(
                             parentContactController,
                             'Parent Contact',
@@ -689,53 +607,39 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                           return;
                         }
 
-                        final String username = usernameController.text.trim();
-                        final String fullName = fullNameController.text.trim();
+                        final username = usernameController.text.trim();
+                        final role = userType.toLowerCase();
 
-                        final newUser = {
-                          'username': username,
-                          'password': passwordController.text,
-                          'email': emailController.text.trim(),
-                          'fullName': fullName,
-                          'role': userType.toLowerCase(),
-                          'isActive': true,
-                          'createdAt': DateTime.now().toIso8601String(),
-                          'source': 'admin',
-                        };
-
-                        if (userType == 'Student') {
-                          newUser['section'] = selectedSection ?? 'Section A';
-                          newUser['studentId'] =
-                              studentIdController.text.trim();
-                          newUser['parentContact'] =
-                              parentContactController.text.trim();
-                        }
-
-                        // Save to SharedPreferences
-                        final prefs = await SharedPreferences.getInstance();
-                        if (userType == 'Teacher') {
-                          await prefs.setString(
-                            "teacher_name_$username",
-                            fullName,
+                        try {
+                          await FirebaseService.adminCreateTeacher(
+                            username: username,
+                            password: passwordController.text.trim(),
+                            profileData: {
+                              'username': username,
+                              'fullName':
+                                  fullNameController.text.trim(), // ← add this
+                              'displayName': fullNameController.text.trim(),
+                              'email': emailController.text.trim(),
+                              'role': role,
+                              'isActive': true,
+                              'createdAt': DateTime.now().toIso8601String(),
+                              'source': 'admin',
+                              if (role == 'student') ...{
+                                'section': selectedSection ?? 'Section A',
+                                'studentId': studentIdController.text.trim(),
+                                'parentContact':
+                                    parentContactController.text.trim(),
+                              },
+                            },
                           );
-                        } else {
-                          await prefs.setString(
-                            "student_name_$username",
-                            fullName,
+                          await _loadUsers();
+                          Navigator.pop(context);
+                          _showMessage('$userType added successfully');
+                        } catch (e) {
+                          _showMessage(
+                            'Failed to create $userType. Username may already exist.',
                           );
                         }
-
-                        setState(() {
-                          if (userType == 'Teacher') {
-                            _teachers.add(newUser);
-                          } else {
-                            _students.add(newUser);
-                          }
-                        });
-
-                        _saveUsers();
-                        Navigator.pop(context);
-                        _showMessage('$userType added successfully');
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kButtonColor,
@@ -750,7 +654,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   void _showEditUserDialog(Map<String, dynamic> user, String userType) {
     final usernameController = TextEditingController(text: user['username']);
-    final passwordController = TextEditingController(text: user['password']);
+    final passwordController = TextEditingController();
     final emailController = TextEditingController(text: user['email'] ?? '');
 
     final fullNameController = TextEditingController(
@@ -876,58 +780,97 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     ),
                     ElevatedButton(
                       onPressed: () async {
-                        final String username = usernameController.text.trim();
-                        final String fullName = fullNameController.text.trim();
-                        final String oldUsername = user['username'];
+                        final String uid = user['uid'] as String;
+                        final String newPassword =
+                            passwordController.text.trim();
+                        final String originalUsername =
+                            user['username'] as String;
+                        final String newUsername =
+                            usernameController.text.trim();
 
-                        final prefs = await SharedPreferences.getInstance();
-
-                        // Handle username change
-                        if (username != oldUsername) {
-                          if (userType == 'Teacher') {
-                            await prefs.remove("teacher_name_$oldUsername");
-                            await prefs.setString(
-                              "teacher_name_$username",
-                              fullName,
-                            );
-                          } else {
-                            await prefs.remove("student_name_$oldUsername");
-                            await prefs.setString(
-                              "student_name_$username",
-                              fullName,
-                            );
-                          }
-                        } else {
-                          if (userType == 'Teacher') {
-                            await prefs.setString(
-                              "teacher_name_$username",
-                              fullName,
-                            );
-                          } else {
-                            await prefs.setString(
-                              "student_name_$username",
-                              fullName,
-                            );
-                          }
+                        if (newUsername.contains(' ')) {
+                          _showMessage('Username cannot contain spaces.');
+                          return;
                         }
 
-                        setState(() {
-                          user['username'] = username;
-                          user['password'] = passwordController.text;
-                          user['email'] = emailController.text.trim();
-                          user['fullName'] = fullName;
+                        try {
+                          // 1. Update Firestore profile
+                          final updates = {
+                            'fullName': fullNameController.text.trim(),
+                            'displayName': fullNameController.text.trim(),
+                            'username': newUsername,
+                            'email': emailController.text.trim(),
+                            if (userType == 'Student') ...{
+                              'section': selectedSection,
+                              'studentId': studentIdController.text.trim(),
+                              'parentContact':
+                                  parentContactController.text.trim(),
+                            },
+                          };
+                          await FirebaseService.updateUserProfile(uid, updates);
 
-                          if (userType == 'Student') {
-                            user['section'] = selectedSection;
-                            user['studentId'] = studentIdController.text.trim();
-                            user['parentContact'] =
-                                parentContactController.text.trim();
+                          // 2. Update password only if admin typed a new one
+                          if (newPassword.isNotEmpty) {
+                            if (newPassword.length < 6) {
+                              _showMessage(
+                                'Password must be at least 6 characters.',
+                              );
+                              return;
+                            }
+
+                            final profile =
+                                await FirebaseService.getUserProfile(uid);
+                            final storedPassword =
+                                profile?['password'] as String? ?? '';
+
+                            if (storedPassword.isEmpty) {
+                              _showMessage(
+                                'Cannot update password: stored password not found.',
+                              );
+                              return;
+                            }
+
+                            try {
+                              await FirebaseService.adminUpdateUserPassword(
+                                username: originalUsername,
+                                currentPassword: storedPassword,
+                                newPassword: newPassword,
+                              );
+
+                              // Sync new password to Firestore
+                              await FirebaseService.updateUserProfile(uid, {
+                                'password': newPassword,
+                              });
+                            } on FirebaseAuthException catch (e) {
+                              if (e.code == 'invalid-credential' ||
+                                  e.code == 'wrong-password' ||
+                                  e.code == 'stored-password-mismatch') {
+                                // Passwords are out of sync — just update Firestore
+                                // so next login works, but warn admin
+                                await FirebaseService.updateUserProfile(uid, {
+                                  'password': newPassword,
+                                });
+                                await _loadUsers();
+                                Navigator.pop(context);
+                                _showMessage(
+                                  '⚠️ Profile saved. Password storage updated but Firebase Auth '
+                                  'may be out of sync. Ask the user to log out and log back in.',
+                                );
+                                return;
+                              }
+                              _showMessage(
+                                'Failed to update password: ${e.message}',
+                              );
+                              return;
+                            }
                           }
-                        });
 
-                        _saveUsers();
-                        Navigator.pop(context);
-                        _showMessage('$userType updated successfully');
+                          await _loadUsers();
+                          Navigator.pop(context);
+                          _showMessage('$userType updated successfully');
+                        } catch (e) {
+                          _showMessage('Failed to update $userType: $e');
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: kButtonColor,
@@ -942,7 +885,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
   Widget _buildUserCard(Map<String, dynamic> user, String userType) {
     final isActive = user['isActive'] ?? true;
-    final fullName = user['fullName'] ?? user['username'];
+    final fullName = user['displayName'] ?? user['username'];
 
     return Card(
       color: const Color(0xFF1C1F3E),
@@ -1052,12 +995,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     );
   }
 
-  void _toggleUserStatus(Map<String, dynamic> user) {
-    setState(() {
-      user['isActive'] = !(user['isActive'] ?? true);
-    });
-    _saveUsers();
-    _showMessage(user['isActive'] ? 'User activated' : 'User deactivated');
+  void _toggleUserStatus(Map<String, dynamic> user) async {
+    final uid = user['uid'] as String;
+    final newStatus = !(user['isActive'] ?? true);
+    await FirebaseService.setUserActive(uid, newStatus);
+    await _loadUsers();
+    _showMessage(newStatus ? 'User activated' : 'User deactivated');
   }
 
   void _showChangePasswordDialog() {
@@ -1113,13 +1056,12 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                 ),
               ),
               ElevatedButton(
-                onPressed: () {
-                  if (currentPasswordController.text != _adminPassword) {
-                    _showMessage('Current password is incorrect');
+                onPressed: () async {
+                  if (currentPasswordController.text.isEmpty) {
+                    _showMessage('Please enter your current password');
                     return;
                   }
-                  if (newPasswordController.text.isEmpty ||
-                      newPasswordController.text.length < 6) {
+                  if (newPasswordController.text.length < 6) {
                     _showMessage('New password must be at least 6 characters');
                     return;
                   }
@@ -1128,13 +1070,23 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                     _showMessage('Passwords do not match');
                     return;
                   }
-
-                  setState(() {
-                    _adminPassword = newPasswordController.text;
-                  });
-                  _saveAdminSettings();
-                  Navigator.pop(context);
-                  _showMessage('Password changed successfully');
+                  try {
+                    final user = FirebaseService.currentUser!;
+                    final cred = EmailAuthProvider.credential(
+                      email: user.email!,
+                      password: currentPasswordController.text,
+                    );
+                    await user.reauthenticateWithCredential(cred);
+                    await user.updatePassword(newPasswordController.text);
+                    Navigator.pop(context);
+                    _showMessage('Password changed successfully');
+                  } on FirebaseAuthException catch (e) {
+                    if (e.code == 'wrong-password') {
+                      _showMessage('Current password is incorrect');
+                    } else {
+                      _showMessage('Failed to change password. Try again.');
+                    }
+                  }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: kButtonColor),
                 child: const Text('Change Password'),
@@ -1616,8 +1568,9 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
                               bottom: 8.0,
                             ),
                             child: ElevatedButton(
-                              onPressed: () {
+                              onPressed: () async {
                                 Navigator.pop(context);
+                                await FirebaseService.signOut();
                                 Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(

@@ -4,6 +4,356 @@ import 'dart:math';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart'; // Added for the new service
 import 'package:audioplayers/audioplayers.dart';
+import 'package:elearningapp_flutter/services/firebase_leaderboard_service.dart';
+import 'package:elearningapp_flutter/services/audio_service.dart';
+
+import 'package:elearningapp_flutter/services/game_achievement_service.dart';
+
+/// Compact collapsible missions panel — embed in any game screen.
+/// Pass [sessionStats] as a reactive map; the panel auto-updates progress.
+class MissionsPanel extends StatefulWidget {
+  final String gameId;
+  final Map<String, dynamic> sessionStats;
+  final Color accentColor;
+
+  const MissionsPanel({
+    Key? key,
+    required this.gameId,
+    required this.sessionStats,
+    this.accentColor = Colors.purpleAccent,
+  }) : super(key: key);
+
+  @override
+  State<MissionsPanel> createState() => _MissionsPanelState();
+}
+
+class _MissionsPanelState extends State<MissionsPanel> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final missions = GameAchievementService.missionsFor(widget.gameId);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1F3E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: widget.accentColor.withOpacity(0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Header row — tap to collapse
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  const Text('🎯', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Missions',
+                    style: TextStyle(
+                      color: widget.accentColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _completedBadge(missions),
+                  const Spacer(),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    color: Colors.white54,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Column(
+                children: missions.map((m) => _missionRow(m)).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _completedBadge(List<GameMission> missions) {
+    final done =
+        missions.where((m) {
+          final val = widget.sessionStats[m.statKey] ?? 0;
+          return (val is int ? val : 0) >= m.target;
+        }).length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: widget.accentColor.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '$done/${missions.length}',
+        style: TextStyle(
+          color: widget.accentColor,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _missionRow(GameMission mission) {
+    final rawVal = widget.sessionStats[mission.statKey] ?? 0;
+    final int current =
+        rawVal is bool ? (rawVal ? mission.target : 0) : (rawVal as int);
+    final bool done = current >= mission.target;
+    final double progress =
+        (current / mission.target).clamp(0.0, 1.0).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          // Status circle
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: done ? Colors.green.withOpacity(0.2) : Colors.white10,
+              border: Border.all(
+                color: done ? Colors.greenAccent : Colors.white24,
+              ),
+            ),
+            child:
+                done
+                    ? const Icon(
+                      Icons.check,
+                      color: Colors.greenAccent,
+                      size: 12,
+                    )
+                    : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mission.description,
+                  style: TextStyle(
+                    color: done ? Colors.white38 : Colors.white70,
+                    fontSize: 12,
+                    decoration: done ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                if (!done) ...[
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      backgroundColor: Colors.white12,
+                      color: widget.accentColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            done ? '✓' : '$current/${mission.target}',
+            style: TextStyle(
+              color: done ? Colors.greenAccent : Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '+${mission.rewardPoints}',
+            style: const TextStyle(color: Colors.amber, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationToast extends StatefulWidget {
+  final String text;
+  final Color color;
+  final bool isError;
+  final Animation<double>? shakeAnimation;
+  final VoidCallback onDismiss;
+
+  const _NotificationToast({
+    required this.text,
+    required this.color,
+    required this.isError,
+    required this.onDismiss,
+    this.shakeAnimation,
+  });
+
+  @override
+  State<_NotificationToast> createState() => _NotificationToastState();
+}
+
+class _NotificationToastState extends State<_NotificationToast>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _slideController;
+  late Animation<Offset> _slideAnim;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 1.4),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
+    );
+
+    _fadeAnim = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
+
+    _slideController.forward();
+
+    // Auto-dismiss after 2.5 s
+    Future.delayed(const Duration(milliseconds: 2500), _dismiss);
+  }
+
+  void _dismiss() async {
+    if (!mounted) return;
+    await _slideController.reverse();
+    widget.onDismiss();
+  }
+
+  @override
+  void dispose() {
+    _slideController.dispose();
+    super.dispose();
+  }
+
+  // Produces a sine-wave horizontal shake offset from the parent shake animation
+  double _shakeOffset(double t) {
+    // 3 full shakes, damped
+    return sin(t * pi * 3) * (1 - t) * 10;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData icon =
+        widget.isError
+            ? Icons.error_outline_rounded
+            : widget.text.startsWith('🎯')
+            ? Icons.flag_rounded
+            : widget.text.startsWith('✅')
+            ? Icons.check_circle_outline_rounded
+            : Icons.auto_awesome_rounded;
+
+    Widget toast = SlideTransition(
+      position: _slideAnim,
+      child: FadeTransition(
+        opacity: _fadeAnim,
+        child: GestureDetector(
+          onTap: _dismiss,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Color.lerp(
+                widget.color.withOpacity(0.15),
+                const Color(0xFF1C1F3E),
+                0.55,
+              ),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: widget.color.withOpacity(0.7),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withOpacity(0.25),
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: widget.color.withOpacity(0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: widget.color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.text,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.95),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Wrap with shake if error
+    if (widget.isError && widget.shakeAnimation != null) {
+      toast = AnimatedBuilder(
+        animation: widget.shakeAnimation!,
+        builder:
+            (_, child) => Transform.translate(
+              offset: Offset(_shakeOffset(widget.shakeAnimation!.value), 0),
+              child: child,
+            ),
+        child: toast,
+      );
+    }
+
+    return Positioned(
+      bottom: 24,
+      left: 0,
+      right: 0,
+      child: Material(color: Colors.transparent, child: toast),
+    );
+  }
+}
 
 // ============================================================================
 // IMPROVEMENTS MADE:
@@ -30,36 +380,6 @@ import 'package:audioplayers/audioplayers.dart';
 // 19. ✅ Personal best now shows in game UI and completion screen
 // 20. ✅ Leaderboard shows only highest score per player
 // ============================================================================
-class AudioService {
-  static final AudioPlayer _audioPlayer = AudioPlayer();
-  static bool _isMuted = false;
-
-  /// Initialize and start background music
-  static Future<void> playBackgroundMusic() async {
-    try {
-      await _audioPlayer.setSource(AssetSource('lib/assets/audio/puzzle.mp3'));
-      await _audioPlayer.setReleaseMode(ReleaseMode.loop); // Loop the music
-      await _audioPlayer.setVolume(_isMuted ? 0.0 : 0.5); // Start at 50% volume
-      await _audioPlayer.resume();
-    } catch (e) {
-      print('Error loading music: $e'); // Handle errors gracefully
-    }
-  }
-
-  /// Stop music (e.g., when leaving the screen)
-  static Future<void> stopMusic() async {
-    await _audioPlayer.stop();
-  }
-
-  /// Toggle mute/unmute
-  static Future<void> toggleMute() async {
-    _isMuted = !_isMuted;
-    await _audioPlayer.setVolume(_isMuted ? 0.0 : 0.5);
-  }
-
-  /// Check if muted
-  static bool get isMuted => _isMuted;
-}
 
 // --- Element Visuals/Colors ---
 final Map<String, dynamic> scienceVisuals = {
@@ -497,7 +817,10 @@ class ScienceFusionHome extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        AudioService.stopBackgroundMusic(); // ADD THIS
+                        Navigator.pop(context);
+                      },
                     ),
                     Expanded(
                       child: Column(
@@ -914,7 +1237,7 @@ class ScienceFusionGame extends StatefulWidget {
 }
 
 class _ScienceFusionGameState extends State<ScienceFusionGame>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   int currentLevel = 1;
   List<String> discoveredElements = [];
   Set<String> collectedElements = {};
@@ -935,9 +1258,14 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
   String gameTitle = "";
   String gameId = "";
   bool showCollectionPanel = false;
+  bool _isPaused = false;
 
   late AnimationController _celebrationController;
   String? lastDiscoveredElement;
+
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  OverlayEntry? _activeNotification;
 
   @override
   void initState() {
@@ -949,6 +1277,13 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
       vsync: this,
       duration: Duration(milliseconds: 800),
     );
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _shakeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn),
+    );
 
     // Show tutorial on first launch
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -958,29 +1293,30 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
     });
 
     // Start background music
-    AudioService.playBackgroundMusic();
+    AudioService.playBackgroundMusic('puzzle.mp3');
   }
 
   Future<void> _loadHighScore() async {
-    // Use the universal service to get the user's high score
-    List<Map<String, dynamic>> userHistory =
-        await UniversalLeaderboardService.getUserHistory(
-          widget.username,
-          gameId: gameId,
-        );
-    if (userHistory.isNotEmpty) {
-      // Find the highest score
-      userHistory.sort((a, b) => b['percentage'].compareTo(a['percentage']));
-      setState(() {
-        highScore = userHistory.first['percentage'];
-      });
+    final best = await FirebaseLeaderboardService.getPersonalBest(
+      FirebaseLeaderboardService.GAME_SCIENCE_FUSION,
+    );
+    setState(() => highScore = best);
+  }
+
+  void _togglePause() {
+    setState(() => _isPaused = !_isPaused);
+    if (_isPaused) {
+      AudioService.pauseBackgroundMusic();
+    } else {
+      AudioService.resumeBackgroundMusic();
     }
   }
 
   @override
   void dispose() {
     _celebrationController.dispose();
-    AudioService.stopMusic(); // Stop music when leaving
+    _shakeController.dispose();
+    _activeNotification?.remove();
     super.dispose();
   }
 
@@ -1241,20 +1577,17 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
     );
 
     // Save score using Universal Leaderboard Service
-    await UniversalLeaderboardService.saveScore(
-      username: widget.username,
-      gameId: gameId,
-      category: "Level ${levelData.length}",
+    await FirebaseLeaderboardService.saveScore(
+      gameName: FirebaseLeaderboardService.GAME_SCIENCE_FUSION,
       score: finalScore,
-      maxScore: maxScore,
       metadata: {
+        'gameMode':
+            widget.gameMode.name, // 'photosynthesis' or 'changesOfMatter'
         'levelsCompleted': currentLevel,
-        'hintsUsed': hintsUsed,
-        'timeBonus': timeBonus,
         'discoveredElements': discoveredElements.length,
         'collectedElements': collectedElements.length,
-        'totalElements': scienceVisuals.length,
         'maxStreak': maxComboStreak,
+        'hintsUsed': hintsUsed,
         'fastestLevel': fastestLevelTime,
       },
     );
@@ -1457,6 +1790,7 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
             actions: [
               TextButton(
                 onPressed: () {
+                  AudioService.stopBackgroundMusic();
                   Navigator.pop(context);
                   Navigator.pop(context);
                 },
@@ -1517,7 +1851,11 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
   void _combine(String target, String dragged) {
     if (target == dragged) {
       HapticFeedback.lightImpact();
-      _showMessage("❌ Can't combine element with itself!", Colors.orangeAccent);
+      _showMessage(
+        "❌ Can't combine element with itself!",
+        Colors.orangeAccent,
+        isError: true,
+      );
       return;
     }
 
@@ -1542,6 +1880,7 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
     if (result != null) {
       if (!discoveredElements.contains(result)) {
         HapticFeedback.mediumImpact();
+        AudioService.playSoundEffect('pop.wav'); // ✅ CORRECT FUSION SOUND
 
         setState(() {
           discoveredElements.add(result!);
@@ -1549,7 +1888,6 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
           score += 10;
           comboStreak++;
           maxComboStreak = max(maxComboStreak, comboStreak);
-
           _celebrationController.forward(from: 0);
 
           if (currentLevelTargets.contains(result)) {
@@ -1577,9 +1915,13 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
         });
       } else {
         HapticFeedback.lightImpact();
+        AudioService.playSoundEffect(
+          'hardpop.wav',
+        ); // ❌ WRONG / ALREADY DISCOVERED
         _showMessage(
           "⚠️ Already discovered! Try different combinations.",
           Colors.orangeAccent,
+          isError: true,
         );
         setState(() {
           comboStreak = max(0, comboStreak - 1);
@@ -1587,9 +1929,11 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
       }
     } else {
       HapticFeedback.lightImpact();
+      AudioService.playSoundEffect('hardpop.wav'); // ❌ WRONG COMBO SOUND
       _showMessage(
         "❌ $target + $dragged don't combine\nTry different elements!",
         Colors.redAccent,
+        isError: true,
       );
       setState(() {
         comboStreak = 0;
@@ -1684,6 +2028,7 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
         hintsUsed++;
         score = max(0, score - 5);
       });
+      AudioService.playSoundEffect('hint.wav'); // ← add this
       _showMessage("💡 Hint (-5 pts):\n$hint", Colors.yellowAccent);
     } else {
       _showMessage(
@@ -1693,23 +2038,35 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
     }
   }
 
-  void _showMessage(String text, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          text,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color:
-                Colors
-                    .black, // Added black text color for better readability against light backgrounds
+  void _showMessage(String text, Color color, {bool isError = false}) {
+    // Dismiss any existing notification
+    _activeNotification?.remove();
+    _activeNotification = null;
+
+    if (isError) {
+      HapticFeedback.lightImpact();
+      _shakeController.forward(from: 0);
+    }
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder:
+          (ctx) => _NotificationToast(
+            text: text,
+            color: color,
+            isError: isError,
+            shakeAnimation: isError ? _shakeAnimation : null,
+            onDismiss: () {
+              entry.remove();
+              if (_activeNotification == entry) _activeNotification = null;
+            },
           ),
-        ),
-        backgroundColor: color,
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
     );
+
+    _activeNotification = entry;
+    overlay.insert(entry);
   }
 
   @override
@@ -1727,6 +2084,14 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
             widget.gameMode == GameMode.photosynthesis
                 ? Colors.green.shade700
                 : Colors.blue.shade700,
+        leading: IconButton(
+          // ADD THIS BLOCK
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            AudioService.stopBackgroundMusic();
+            Navigator.pop(context);
+          },
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1747,25 +2112,30 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
+            icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+            onPressed: _togglePause,
+            tooltip: _isPaused ? "Resume" : "Pause",
+          ),
+          IconButton(
             icon: Icon(Icons.lightbulb_outline),
-            onPressed: _showHint,
+            onPressed: _isPaused ? null : _showHint,
             tooltip: "Get Hint (-5 pts)",
           ),
           IconButton(
             icon: Stack(
               children: [
-                Icon(Icons.collections_bookmark),
+                const Icon(Icons.collections_bookmark),
                 if (collectedElements.length < discoveredElements.length)
                   Positioned(
                     right: 0,
                     top: 0,
                     child: Container(
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
                         color: Colors.red,
                         shape: BoxShape.circle,
                       ),
-                      child: Text(
+                      child: const Text(
                         '!',
                         style: TextStyle(
                           color: Colors.white,
@@ -1777,9 +2147,12 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
                   ),
               ],
             ),
-            onPressed: () {
-              setState(() => showCollectionPanel = !showCollectionPanel);
-            },
+            onPressed:
+                _isPaused
+                    ? null
+                    : () => setState(
+                      () => showCollectionPanel = !showCollectionPanel,
+                    ),
             tooltip:
                 "Collection (${collectedElements.length}/${discoveredElements.length})",
           ),
@@ -1793,195 +2166,281 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          const SizedBox(height: 12),
+          Column(
+            children: [
+              const SizedBox(height: 12),
 
-          // Info Panel
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                _buildTargetDisplay(),
-                const SizedBox(height: 12),
-                LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.white24,
-                  color: Colors.greenAccent,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Info Panel
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Score: $score",
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        if (highScore > 0)
-                          Text(
-                            "Best: $highScore",
-                            style: TextStyle(
-                              color: Colors.amber.shade300,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        if (comboStreak > 1)
-                          Text(
-                            "🔥 Streak: x$comboStreak",
-                            style: TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                      ],
+                    _buildTargetDisplay(),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.white24,
+                      color: Colors.greenAccent,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    Text(
-                      "Progress: $discoveredCount/$requiredDiscoveries",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Collected: ${collectedElements.length}",
-                          style: TextStyle(
-                            color: Colors.cyanAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Score: $score",
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            if (highScore > 0)
+                              Text(
+                                "Best: $highScore",
+                                style: TextStyle(
+                                  color: Colors.amber.shade300,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            if (comboStreak > 1)
+                              Text(
+                                "🔥 Streak: x$comboStreak",
+                                style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
                         ),
                         Text(
-                          "Hints: $hintsUsed",
+                          "Progress: $discoveredCount/$requiredDiscoveries",
                           style: TextStyle(
-                            color: Colors.orangeAccent,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 14,
                           ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              "Collected: ${collectedElements.length}",
+                              style: TextStyle(
+                                color: Colors.cyanAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              "Hints: $hintsUsed",
+                              style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-
-          // Collection Panel
-          if (showCollectionPanel) _buildCollectionPanel(),
-
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade900.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade700),
               ),
-              child: Text(
-                levelData[currentLevel - 1]['description'],
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontStyle: FontStyle.italic,
+
+              // Collection Panel
+              if (showCollectionPanel) _buildCollectionPanel(),
+
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade900.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade700),
+                  ),
+                  child: Text(
+                    levelData[currentLevel - 1]['description'],
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
-            ),
-          ),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              "🧪 Long-press and drag elements together to fuse!",
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  "🧪 Long-press and drag elements together to fuse!",
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              ),
 
-          const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-          // Base Elements Grid
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Removed: The separate base elements grid (first 4 cards) has been eliminated.
-                  // Instead, the Fusion Lab now serves as the main element area, displaying all discovered elements (including base elements from the start).
-
-                  // Discovered Elements Grid (Fusion Lab) - Now the primary/main element area
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+              // Fusion Lab Grid
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.science, color: Colors.amber, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              "🔬 Fusion Lab - Drag elements together!",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.science,
+                                  color: Colors.amber,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  "🔬 Fusion Lab - Drag elements together!",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF1C1F3E),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.purple.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: GridView.builder(
+                                shrinkWrap: true,
+                                physics: NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 4,
+                                      mainAxisSpacing: 8,
+                                      crossAxisSpacing: 8,
+                                      childAspectRatio: 1.0,
+                                    ),
+                                itemCount: discoveredElements.length,
+                                itemBuilder: (context, index) {
+                                  final element = discoveredElements[index];
+                                  return _draggableDiscoveredTile(element);
+                                },
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: 8),
-                        Container(
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF1C1F3E),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.purple.shade300,
-                              width: 2,
-                            ),
-                          ),
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount:
-                                  4, // Adjusted for better layout in the main area
-                              mainAxisSpacing: 8,
-                              crossAxisSpacing: 8,
-                              childAspectRatio: 1.0,
-                            ),
-                            itemCount: discoveredElements.length,
-                            itemBuilder: (context, index) {
-                              final element = discoveredElements[index];
-                              return _draggableDiscoveredTile(
-                                element,
-                              ); // All elements are now draggable from here
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 20),
+                    ],
                   ),
-                  SizedBox(height: 20),
-                ],
+                ),
+              ),
+            ],
+          ),
+
+          // ── PAUSE OVERLAY ──
+          if (_isPaused)
+            Container(
+              color: Colors.black.withOpacity(0.8),
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1C1F3E),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text("⏸️", style: TextStyle(fontSize: 52)),
+                      const SizedBox(height: 12),
+                      const Text(
+                        "Paused",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Score: $score pts",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.play_arrow),
+                          label: const Text(
+                            "Resume",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: _togglePause,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.home),
+                          label: const Text("Quit to Menu"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                            side: const BorderSide(color: Colors.white24),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () {
+                            setState(() => _isPaused = false);
+                            AudioService.stopBackgroundMusic();
+                            Navigator.pop(context);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -2236,7 +2695,6 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
         {"color": Colors.grey, "icon": Icons.help_outline, "emoji": "❓"};
     final Color elementColor = elementProps['color'];
     final String emoji = elementProps['emoji'];
-    final double fontSize = size * 0.14;
     bool isCollected = collectedElements.contains(text);
 
     return AnimatedContainer(
@@ -2267,59 +2725,74 @@ class _ScienceFusionGameState extends State<ScienceFusionGame>
       alignment: Alignment.center,
       padding: const EdgeInsets.all(4),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(emoji, style: TextStyle(fontSize: size * 0.35)),
-              const SizedBox(height: 4),
-              Text(
-                text,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: fontSize,
-                  height: 1.1,
+          // ── Main content column ──
+          SizedBox(
+            width: double.infinity,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Emoji — slightly smaller to leave room for text
+                Text(emoji, style: TextStyle(fontSize: size * 0.28)),
+                const SizedBox(height: 2),
+                // Name text — constrained so it never overlaps badges
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: showInfoButton ? 6 : 2,
+                  ),
+                  child: Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: size * 0.12,
+                      height: 1.1,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+
+          // ── Collected badge — TOP LEFT (doesn't cover name) ──
           if (isCollected && !baseElements.contains(text))
             Positioned(
-              top: 2,
-              right: 2,
+              top: 0,
+              left: 0,
               child: Container(
-                padding: EdgeInsets.all(2),
-                decoration: BoxDecoration(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
                   color: Colors.green,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.check, color: Colors.white, size: 12),
+                child: const Icon(Icons.check, color: Colors.white, size: 10),
               ),
             ),
-          // Info button (tap to see definition)
+
+          // ── Info button — TOP RIGHT (doesn't cover name) ──
           if (showInfoButton && !baseElements.contains(text))
             Positioned(
-              bottom: 2,
-              right: 2,
+              top: 0,
+              right: 0,
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
                   _showElementInfo(text);
                 },
                 child: Container(
-                  padding: EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.8),
+                    color: Colors.blue.withOpacity(0.85),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.info_outline,
                     color: Colors.white,
-                    size: 12,
+                    size: 11,
                   ),
                 ),
               ),

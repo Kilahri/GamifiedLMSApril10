@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // ============================================================================
 // SAVED NOTES SCREEN
@@ -35,10 +36,11 @@ class _SavedNotesScreenState extends State<SavedNotesScreen>
 
   Future<void> _loadNotes() async {
     setState(() => _isLoading = true);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
     final prefs = await SharedPreferences.getInstance();
 
     // Load video notes
-    String? videoNotesJson = prefs.getString('video_notes');
+    String? videoNotesJson = prefs.getString('video_notes_$uid');
     if (videoNotesJson != null) {
       try {
         videoNotes = List<Map<String, dynamic>>.from(
@@ -47,16 +49,20 @@ class _SavedNotesScreenState extends State<SavedNotesScreen>
       } catch (e) {
         videoNotes = [];
       }
+    } else {
+      videoNotes = [];
     }
 
     // Load book notes
-    String? bookNotesJson = prefs.getString('book_notes');
+    String? bookNotesJson = prefs.getString('book_notes_$uid');
     if (bookNotesJson != null) {
       try {
         bookNotes = List<Map<String, dynamic>>.from(jsonDecode(bookNotesJson));
       } catch (e) {
         bookNotes = [];
       }
+    } else {
+      bookNotes = [];
     }
 
     setState(() => _isLoading = false);
@@ -90,9 +96,13 @@ class _SavedNotesScreenState extends State<SavedNotesScreen>
                     videoNotes.removeAt(index);
                   });
 
+                  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('video_notes', jsonEncode(videoNotes));
-
+                  await prefs.setString(
+                    'video_notes_$uid',
+                    jsonEncode(videoNotes),
+                  );
+                  if (!mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -137,9 +147,13 @@ class _SavedNotesScreenState extends State<SavedNotesScreen>
                     bookNotes.removeAt(index);
                   });
 
+                  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
                   final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('book_notes', jsonEncode(bookNotes));
-
+                  await prefs.setString(
+                    'book_notes_$uid',
+                    jsonEncode(bookNotes),
+                  );
+                  if (!mounted) return;
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -367,9 +381,9 @@ class _SavedNotesScreenState extends State<SavedNotesScreen>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Take notes while learning to save them here!',
-            style: const TextStyle(color: Colors.white38, fontSize: 14),
+            style: TextStyle(color: Colors.white38, fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ],
@@ -465,10 +479,11 @@ class NotesHelper {
     required String content,
     String? lessonEmoji,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
     final prefs = await SharedPreferences.getInstance();
 
     // Load existing notes
-    String? notesJson = prefs.getString('video_notes');
+    String? notesJson = prefs.getString('video_notes_$uid');
     List<Map<String, dynamic>> notes = [];
     if (notesJson != null) {
       try {
@@ -478,17 +493,34 @@ class NotesHelper {
       }
     }
 
-    // Add new note
-    notes.add({
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+    // Check if note for this lesson already exists
+    int existingIndex = -1;
+    for (int i = 0; i < notes.length; i++) {
+      if (notes[i]['title']?.contains(title) ?? false) {
+        existingIndex = i;
+        break;
+      }
+    }
+
+    final noteData = {
+      'id':
+          existingIndex >= 0
+              ? notes[existingIndex]['id']
+              : DateTime.now().millisecondsSinceEpoch.toString(),
       'title': lessonEmoji != null ? '$lessonEmoji $title' : title,
       'content': content,
       'date': _formatDate(DateTime.now()),
       'timestamp': DateTime.now().toIso8601String(),
-    });
+    };
+
+    if (existingIndex >= 0) {
+      notes[existingIndex] = noteData;
+    } else {
+      notes.add(noteData);
+    }
 
     // Save back to preferences
-    await prefs.setString('video_notes', jsonEncode(notes));
+    await prefs.setString('video_notes_$uid', jsonEncode(notes));
   }
 
   /// Save a book note
@@ -497,10 +529,11 @@ class NotesHelper {
     required String chapterTitle,
     required String content,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
     final prefs = await SharedPreferences.getInstance();
 
     // Load existing notes
-    String? notesJson = prefs.getString('book_notes');
+    String? notesJson = prefs.getString('book_notes_$uid');
     List<Map<String, dynamic>> notes = [];
     if (notesJson != null) {
       try {
@@ -522,7 +555,7 @@ class NotesHelper {
     });
 
     // Save back to preferences
-    await prefs.setString('book_notes', jsonEncode(notes));
+    await prefs.setString('book_notes_$uid', jsonEncode(notes));
   }
 
   /// Update existing video note
@@ -530,8 +563,9 @@ class NotesHelper {
     required String noteId,
     required String content,
   }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
     final prefs = await SharedPreferences.getInstance();
-    String? notesJson = prefs.getString('video_notes');
+    String? notesJson = prefs.getString('video_notes_$uid');
 
     if (notesJson != null) {
       List<Map<String, dynamic>> notes = List<Map<String, dynamic>>.from(
@@ -547,14 +581,15 @@ class NotesHelper {
         }
       }
 
-      await prefs.setString('video_notes', jsonEncode(notes));
+      await prefs.setString('video_notes_$uid', jsonEncode(notes));
     }
   }
 
   /// Get note for current lesson (if exists)
   static Future<String?> getVideoNoteForLesson(String lessonTitle) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
     final prefs = await SharedPreferences.getInstance();
-    String? notesJson = prefs.getString('video_notes');
+    String? notesJson = prefs.getString('video_notes_$uid');
 
     if (notesJson != null) {
       List<Map<String, dynamic>> notes = List<Map<String, dynamic>>.from(
@@ -573,7 +608,7 @@ class NotesHelper {
 
   /// Format date helper
   static String _formatDate(DateTime date) {
-    final months = [
+    const months = [
       'Jan',
       'Feb',
       'Mar',
@@ -590,77 +625,3 @@ class NotesHelper {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 }
-
-// ============================================================================
-// UPDATED WATCH SCREEN INTEGRATION
-// ============================================================================
-
-// Add this method to your WatchScreen's _WatchScreenState class:
-
-/*
-// Replace the existing notes saving functionality with this:
-
-Future<void> _saveNotes() async {
-  if (_notesController.text.trim().isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please write something before saving!'),
-        backgroundColor: Colors.orange,
-      ),
-    );
-    return;
-  }
-
-  final lesson = scienceLessons[currentLessonIndex];
-  
-  await NotesHelper.saveVideoNote(
-    title: lesson.title,
-    content: _notesController.text.trim(),
-    lessonEmoji: lesson.emoji,
-  );
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Notes saved successfully! ✓'),
-      backgroundColor: Color(0xFF4CAF50),
-      duration: Duration(seconds: 2),
-    ),
-  );
-}
-
-// Update the Save Notes button onPressed to:
-ElevatedButton.icon(
-  onPressed: _saveNotes,
-  icon: const Icon(Icons.save),
-  label: const Text("Save Notes"),
-  style: ElevatedButton.styleFrom(
-    backgroundColor: const Color(0xFF7B4DFF),
-    minimumSize: const Size(double.infinity, 45),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-  ),
-),
-*/
-
-// ============================================================================
-// SETTINGS SCREEN INTEGRATION
-// ============================================================================
-
-// Add this to your settings screen build method:
-
-/*
-_buildSettingsTile(
-  icon: Icons.bookmark_border,
-  title: 'Saved Items & Notes',
-  subtitle: 'Review your saved lessons and notes',
-  onTap: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SavedNotesScreen(),
-      ),
-    );
-  },
-),
-*/

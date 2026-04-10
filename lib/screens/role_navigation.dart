@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// Screen Imports
+// ... your existing imports ...
 import 'home_screen.dart';
 import 'play_screen.dart';
 import 'watch_screen.dart';
@@ -13,13 +13,13 @@ import 'teacher_content_management.dart'
 import 'progress_tracking_view.dart';
 import 'package:elearningapp_flutter/leaderboard/leaderboard.dart';
 import 'package:elearningapp_flutter/screens/teacher/teacher_settings_screen.dart';
+import 'package:elearningapp_flutter/leaderboard/combined_leaderboard_screen.dart';
 
-// 🎨 Theme Constants
-const Color kStudentColor = Color(0xFFFFC107); // Amber
-const Color kTeacherColor = Color(0xFF42A5F5); // Blue
+const Color kStudentColor = Color(0xFFFFC107);
+const Color kTeacherColor = Color(0xFF42A5F5);
 const Color kDarkGradientStart = Color(0xFF0D102C);
-const Color kDarkGradientEnd = Color(0xFF1E2152);
-const double kIconSize = 28.0;
+const Color kDarkGradientEnd = Color(0xFF1A1D3A);
+const double kIconSize = 24.0;
 
 class RoleNavigation extends StatefulWidget {
   final String role;
@@ -34,7 +34,6 @@ class RoleNavigation extends StatefulWidget {
 class _RoleNavigationState extends State<RoleNavigation> {
   int _selectedIndex = 0;
 
-  // Helper to check role case-insensitively
   bool get _isTeacherOrAdmin {
     final r = widget.role.toLowerCase();
     return r == 'teacher' || r == 'admin';
@@ -46,88 +45,92 @@ class _RoleNavigationState extends State<RoleNavigation> {
   void initState() {
     super.initState();
     _pages = [
-      HomeScreen(role: widget.role, username: widget.username), // 0
-      PlayScreen(role: widget.role, username: widget.username), // 1
-      const LessonSelectionScreen(), // 2 - CHANGED from WatchScreen to LessonSelectionScreen
-      const ReadScreen(), // 3
-      UniversalOverallLeaderboardScreen(username: widget.username), // 4
-      SettingsScreen(currentUsername: widget.username), // 5
-      const TeacherCMSPage(), // 6
-      const ProgressTrackingView(), // 7
-      const TeacherContentManagementScreen(), // 8
-      const TeacherMessagesScreen(), // 9
-      TeacherSettingsScreen(currentUsername: widget.username), // 10
+      HomeScreen(role: widget.role, username: widget.username),
+      PlayScreen(role: widget.role, username: widget.username),
+      const LessonSelectionScreen(),
+      ReadScreen(userId: widget.username),
+      CombinedLeaderboardScreen(currentUserId: widget.username),
+      SettingsScreen(currentUsername: widget.username),
+      const TeacherCMSPage(),
+      const ProgressTrackingView(),
+      const TeacherContentManagementScreen(),
+      const TeacherMessagesScreen(),
+      TeacherSettingsScreen(currentUsername: widget.username),
     ];
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
   }
 
-  /// Maps the BottomNavBar index to the correct page in the [_pages] list
   int _getPageMapIndex(int index) {
     if (_isTeacherOrAdmin) {
       switch (index) {
         case 0:
-          return 8; // Content -> TeacherContentManagementScreen
+          return 8;
         case 1:
-          return 9; // Messages -> TeacherMessagesScreen
+          return 9;
         case 2:
-          return 10; // Profile -> TeacherSettingsScreen
+          return 10;
         default:
           return 8;
       }
-    } else {
-      return index; // Students follow 0-5 mapping directly
     }
+    return index;
   }
 
   List<BottomNavigationBarItem> _getNavItems() {
     if (_isTeacherOrAdmin) {
       return const [
         BottomNavigationBarItem(
-          icon: Icon(Icons.auto_stories, size: kIconSize),
-          label: "Content",
+          icon: Icon(Icons.auto_stories_outlined),
+          activeIcon: Icon(Icons.auto_stories),
+          label: 'Content',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.forum_rounded, size: kIconSize),
-          label: "Messages",
+          icon: Icon(Icons.forum_outlined),
+          activeIcon: Icon(Icons.forum_rounded),
+          label: 'Messages',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.settings, size: kIconSize),
-          label: "Settings",
-        ),
-      ];
-    } else {
-      return const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_rounded, size: kIconSize),
-          label: "My Zone",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.sports_esports, size: kIconSize),
-          label: "Play",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.play_circle_fill, size: kIconSize),
-          label: "Watch",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.menu_book_rounded, size: kIconSize),
-          label: "Read",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.emoji_events, size: kIconSize),
-          label: "Rankings",
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.settings, size: kIconSize),
-          label: "Settings",
+          icon: Icon(Icons.settings_outlined),
+          activeIcon: Icon(Icons.settings),
+          label: 'Settings',
         ),
       ];
     }
+    return const [
+      BottomNavigationBarItem(
+        icon: Icon(Icons.home_outlined),
+        activeIcon: Icon(Icons.home_rounded),
+        label: 'My Zone',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.sports_esports_outlined),
+        activeIcon: Icon(Icons.sports_esports),
+        label: 'Play',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.play_circle_outline),
+        activeIcon: Icon(Icons.play_circle_fill),
+        label: 'Watch',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.menu_book_outlined),
+        activeIcon: Icon(Icons.menu_book_rounded),
+        label: 'Read',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.emoji_events_outlined),
+        activeIcon: Icon(Icons.emoji_events),
+        label: 'Rankings',
+      ),
+      BottomNavigationBarItem(
+        icon: Icon(Icons.settings_outlined),
+        activeIcon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
+    ];
   }
 
   @override
@@ -143,27 +146,92 @@ class _RoleNavigationState extends State<RoleNavigation> {
             end: Alignment.bottomCenter,
           ),
         ),
-        // Use an IndexedStack to keep page states alive when switching tabs
         child: IndexedStack(
           index: _getPageMapIndex(_selectedIndex),
           children: _pages,
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(color: themeColor.withOpacity(0.2), width: 0.5),
-          ),
+      bottomNavigationBar: _buildNavBar(themeColor),
+    );
+  }
+
+  Widget _buildNavBar(Color themeColor) {
+    final items = _getNavItems();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kDarkGradientEnd,
+        // Glow line at the top
+        border: Border(
+          top: BorderSide(color: themeColor.withOpacity(0.35), width: 1.0),
         ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: kDarkGradientEnd,
-          selectedItemColor: themeColor,
-          unselectedItemColor: Colors.white38,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          items: _getNavItems(),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final isActive = _selectedIndex == index;
+              final item = items[index];
+
+              return GestureDetector(
+                onTap: () => _onItemTapped(index),
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Pill indicator
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        height: 3,
+                        width: isActive ? 24 : 0,
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: themeColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      // Icon
+                      IconTheme(
+                        data: IconThemeData(
+                          size: kIconSize,
+                          color:
+                              isActive
+                                  ? themeColor
+                                  : Colors.white.withOpacity(0.35),
+                        ),
+                        child:
+                            isActive ? item.activeIcon ?? item.icon : item.icon,
+                      ),
+                      const SizedBox(height: 3),
+                      // Label
+                      Text(
+                        item.label ?? '',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              isActive ? FontWeight.w600 : FontWeight.w400,
+                          color:
+                              isActive
+                                  ? themeColor
+                                  : Colors.white.withOpacity(0.35),
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );

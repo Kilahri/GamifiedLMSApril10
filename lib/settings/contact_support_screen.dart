@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ContactSupportScreen extends StatefulWidget {
   final String currentUsername;
@@ -18,6 +17,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
 
   String _selectedRecipient = "Admin";
   final List<String> _recipients = ["Admin", "Teacher"];
+  bool _isSending = false;
 
   final Color _primaryAccentColor = const Color(0xFF415A77);
   final Color _sectionTitleColor = const Color(0xFF98C1D9);
@@ -30,30 +30,20 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
   }
 
   Future<void> _sendMessage() async {
-    if (_formKey.currentState!.validate()) {
-      final prefs = await SharedPreferences.getInstance();
+    if (!_formKey.currentState!.validate()) return;
 
-      // Create message object
-      final message = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+    setState(() => _isSending = true);
+
+    try {
+      // Save message directly to Firestore so admin can see it
+      await FirebaseFirestore.instance.collection('messages').add({
         'from': widget.currentUsername,
         'to': _selectedRecipient,
         'subject': _subjectController.text.trim(),
         'message': _messageController.text.trim(),
         'timestamp': DateTime.now().toIso8601String(),
         'isRead': false,
-      };
-
-      // Load existing messages
-      String? messagesJson = prefs.getString('admin_messages');
-      List<dynamic> messages =
-          messagesJson != null ? jsonDecode(messagesJson) : [];
-
-      // Add new message
-      messages.insert(0, message); // Insert at beginning for newest first
-
-      // Save messages
-      await prefs.setString('admin_messages', jsonEncode(messages));
+      });
 
       if (!mounted) return;
 
@@ -98,9 +88,17 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
       // Clear form
       _subjectController.clear();
       _messageController.clear();
-      setState(() {
-        _selectedRecipient = "Admin";
-      });
+      setState(() => _selectedRecipient = "Admin");
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send message: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
   }
 
@@ -217,9 +215,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
-                      setState(() {
-                        _selectedRecipient = newValue;
-                      });
+                      setState(() => _selectedRecipient = newValue);
                     }
                   },
                 ),
@@ -336,7 +332,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _sendMessage,
+                  onPressed: _isSending ? null : _sendMessage,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryAccentColor,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -344,10 +340,20 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  label: const Text(
-                    "Send Message",
-                    style: TextStyle(
+                  icon:
+                      _isSending
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Icon(Icons.send, color: Colors.white),
+                  label: Text(
+                    _isSending ? "Sending..." : "Send Message",
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,

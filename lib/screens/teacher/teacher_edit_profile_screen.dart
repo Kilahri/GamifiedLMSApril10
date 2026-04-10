@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:elearningapp_flutter/services/firebase_services.dart';
 
 // Theme Colors
 const Color kPrimaryColor = Color(0xFF1B263B);
@@ -49,112 +50,146 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final uid = FirebaseService.currentUser!.uid;
+      final profile = await FirebaseService.getUserProfile(uid);
 
-    setState(() {
-      _usernameController.text = widget.currentUsername;
-      _passwordController.text = prefs.getString("password") ?? "";
+      if (profile == null) return;
 
-      // Load teacher-specific full name
-      _nameController.text =
-          prefs.getString("teacher_name_${widget.currentUsername}") ??
-          prefs.getString("name") ??
-          "";
-
-      // Load additional teacher info
-      _emailController.text =
-          prefs.getString("teacher_email_${widget.currentUsername}") ?? "";
-      _phoneController.text =
-          prefs.getString("teacher_phone_${widget.currentUsername}") ?? "";
-      _departmentController.text =
-          prefs.getString("teacher_department_${widget.currentUsername}") ?? "";
-
-      _isLoading = false;
-    });
+      setState(() {
+        _nameController.text = profile['displayName'] ?? '';
+        _usernameController.text =
+            profile['username'] ?? widget.currentUsername;
+        _passwordController.text = '';
+        _emailController.text = profile['email'] ?? '';
+        _phoneController.text = profile['phone'] ?? '';
+        _departmentController.text = profile['department'] ?? '';
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveProfile() async {
     if (_nameController.text.trim().isEmpty ||
-        _usernameController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
-      _showErrorDialog(
-        "Please fill in all required fields (Name, Username, Password).",
-      );
+        _usernameController.text.trim().isEmpty) {
+      _showErrorDialog('Please fill in all required fields (Name, Username).');
       return;
     }
 
-    String newUsername = _usernameController.text.trim();
-    bool usernameChanged = newUsername != widget.currentUsername;
+    setState(() => _isLoading = true);
 
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final uid = FirebaseService.currentUser!.uid;
+      final newUsername = _usernameController.text.trim();
+      final newPassword = _passwordController.text.trim();
+      final usernameChanged = newUsername != widget.currentUsername;
 
-    // Save teacher-specific full name
-    if (usernameChanged) {
-      await prefs.remove("teacher_name_${widget.currentUsername}");
-      await prefs.setString(
-        "teacher_name_$newUsername",
-        _nameController.text.trim(),
-      );
+      // 1. If username changed, check it's not already taken.
+      if (usernameChanged) {
+        // Validate no spaces in username
+        if (newUsername.contains(' ')) {
+          _showErrorDialog('Username cannot contain spaces.');
+          setState(() => _isLoading = false);
+          return;
+        }
 
-      // Migrate additional info
-      await prefs.remove("teacher_email_${widget.currentUsername}");
-      await prefs.remove("teacher_phone_${widget.currentUsername}");
-      await prefs.remove("teacher_department_${widget.currentUsername}");
+        final existing = await FirebaseService.findUserByUsername(newUsername);
+        if (existing != null && existing['uid'] != uid) {
+          _showErrorDialog('Username already taken. Please choose another.');
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
 
-      await prefs.setString(
-        "teacher_email_$newUsername",
-        _emailController.text.trim(),
-      );
-      await prefs.setString(
-        "teacher_phone_$newUsername",
-        _phoneController.text.trim(),
-      );
-      await prefs.setString(
-        "teacher_department_$newUsername",
-        _departmentController.text.trim(),
-      );
-    } else {
-      await prefs.setString(
-        "teacher_name_${widget.currentUsername}",
-        _nameController.text.trim(),
-      );
-      await prefs.setString(
-        "teacher_email_${widget.currentUsername}",
-        _emailController.text.trim(),
-      );
-      await prefs.setString(
-        "teacher_phone_${widget.currentUsername}",
-        _phoneController.text.trim(),
-      );
-      await prefs.setString(
-        "teacher_department_${widget.currentUsername}",
-        _departmentController.text.trim(),
-      );
-    }
+      // 2. Update password if user entered a new one.
+      if (newPassword.isNotEmpty) {
+        if (newPassword.length < 6) {
+          _showErrorDialog('Password must be at least 6 characters.');
+          setState(() => _isLoading = false);
+          return;
+        }
+        try {
+          final profile = await FirebaseService.getUserProfile(
+            FirebaseService.currentUser!.uid,
+          );
+          final storedPassword = profile?['password'] as String? ?? '';
 
-    // Save common data
-    await prefs.setString("name", _nameController.text.trim());
-    await prefs.setString("username", newUsername);
-    await prefs.setString("password", _passwordController.text);
-    await prefs.setString("role", "teacher");
+          if (storedPassword.isNotEmpty) {
+            final cred = EmailAuthProvider.credential(
+              email: FirebaseService.currentUser!.email!,
+              password: storedPassword,
+            );
+            await FirebaseService.currentUser!.reauthenticateWithCredential(
+              cred,
+            );
+          }
 
-    if (!mounted) return;
+          // Update Firebase Auth password
+          await FirebaseService.currentUser!.updatePassword(newPassword);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text("Profile updated successfully!"),
-          ],
+          // Sync to Firestore so future logins and admin resets work
+          await FirebaseService.updateUserProfile(
+            FirebaseService.currentUser!.uid,
+            {'password': newPassword},
+          );
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'requires-recent-login') {
+            _showErrorDialog(
+              'Please log out and log back in before changing your password.',
+            );
+          } else {
+            _showErrorDialog('Failed to update password: ${e.message}');
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+      }
+
+      // 3. Update Firestore profile with teacher-specific fields.
+      final Map<String, dynamic> updates = {
+        'displayName': _nameController.text.trim(),
+        'username': newUsername,
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'department': _departmentController.text.trim(),
+        'role': 'teacher',
+      };
+
+      await FirebaseService.updateUserProfile(uid, updates);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Profile updated successfully!'),
+            ],
+          ),
+          backgroundColor: Color(0xFF4CAF50),
+          duration: Duration(seconds: 2),
         ),
-        backgroundColor: Color(0xFF4CAF50),
-        duration: Duration(seconds: 2),
-      ),
-    );
+      );
 
-    Navigator.pop(context, usernameChanged ? newUsername : null);
+      Navigator.pop(context, usernameChanged ? newUsername : null);
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Failed to update profile.';
+      if (e.code == 'requires-recent-login') {
+        msg =
+            'For security, please log out and log back in before changing your password.';
+      } else if (e.code == 'weak-password') {
+        msg = 'Password too weak. Use at least 6 characters.';
+      }
+      _showErrorDialog(msg);
+    } catch (e) {
+      _showErrorDialog('An error occurred: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showErrorDialog(String message) {
@@ -167,7 +202,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
               children: [
                 Icon(Icons.error_outline, color: Colors.redAccent),
                 SizedBox(width: 8),
-                Text("Validation Error", style: TextStyle(color: Colors.white)),
+                Text('Validation Error', style: TextStyle(color: Colors.white)),
               ],
             ),
             content: Text(
@@ -178,7 +213,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  "OK",
+                  'OK',
                   style: TextStyle(color: kHighlightColor),
                 ),
               ),
@@ -212,7 +247,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
             ),
             if (required)
               const Text(
-                " *",
+                ' *',
                 style: TextStyle(color: Colors.redAccent, fontSize: 14),
               ),
           ],
@@ -277,7 +312,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
           backgroundColor: kPrimaryColor,
           elevation: 0,
           title: const Text(
-            "Edit Profile",
+            'Edit Profile',
             style: TextStyle(color: Colors.white),
           ),
           iconTheme: const IconThemeData(color: Colors.white),
@@ -294,7 +329,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
         backgroundColor: kPrimaryColor,
         elevation: 0,
         title: const Text(
-          "Edit Profile",
+          'Edit Profile',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
@@ -304,6 +339,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Avatar
             Center(
               child: Stack(
                 children: [
@@ -344,7 +380,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                "Teacher Account",
+                'Teacher Account',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.6),
                   fontSize: 14,
@@ -353,49 +389,51 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
               ),
             ),
 
-            _buildSectionHeader("Personal Information", Icons.person_outline),
+            // ── Personal Information ────────────────────────────────────────
+            _buildSectionHeader('Personal Information', Icons.person_outline),
 
             _buildTextField(
               controller: _nameController,
-              label: "Full Name",
+              label: 'Full Name',
               icon: Icons.person,
-              hint: "Enter your full name",
+              hint: 'Enter your full name',
               required: true,
             ),
             const SizedBox(height: kSpacing),
 
             _buildTextField(
               controller: _emailController,
-              label: "Email Address",
+              label: 'Email Address',
               icon: Icons.email,
-              hint: "teacher@example.com",
+              hint: 'teacher@example.com',
               type: TextInputType.emailAddress,
             ),
             const SizedBox(height: kSpacing),
 
             _buildTextField(
               controller: _phoneController,
-              label: "Phone Number",
+              label: 'Phone Number',
               icon: Icons.phone,
-              hint: "Optional",
+              hint: 'Optional',
               type: TextInputType.phone,
             ),
             const SizedBox(height: kSpacing),
 
             _buildTextField(
               controller: _departmentController,
-              label: "Department/Subject",
+              label: 'Department / Subject',
               icon: Icons.subject,
-              hint: "e.g., Science, Mathematics",
+              hint: 'e.g., Science, Mathematics',
             ),
 
-            _buildSectionHeader("Account Credentials", Icons.vpn_key),
+            // ── Account Credentials ────────────────────────────────────────
+            _buildSectionHeader('Account Credentials', Icons.vpn_key),
 
             _buildTextField(
               controller: _usernameController,
-              label: "Username",
+              label: 'Username',
               icon: Icons.account_circle,
-              hint: "Choose a unique username",
+              hint: 'Choose a unique username',
               required: true,
             ),
             const SizedBox(height: 8),
@@ -411,7 +449,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      "Changing username will update your login credentials",
+                      'Changing username will update your login credentials',
                       style: TextStyle(
                         color: Colors.amber.shade300,
                         fontSize: 12,
@@ -425,26 +463,47 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
 
             _buildTextField(
               controller: _passwordController,
-              label: "Password",
+              label: 'New Password (optional)',
               icon: Icons.lock,
-              hint: "Enter your password",
+              hint: 'Leave blank to keep current password',
               obscure: _obscurePassword,
-              required: true,
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility : Icons.visibility_off,
                   color: kAccentColor,
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
+                onPressed:
+                    () => setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.white38,
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Only fill this in if you want to change your password',
+                      style: TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
             const SizedBox(height: 32),
 
+            // Save button
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -452,7 +511,7 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
                 onPressed: _saveProfile,
                 icon: const Icon(Icons.save, size: 22),
                 label: const Text(
-                  "Save Changes",
+                  'Save Changes',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -468,13 +527,14 @@ class _TeacherEditProfileScreenState extends State<TeacherEditProfileScreen> {
 
             const SizedBox(height: 16),
 
+            // Cancel button
             SizedBox(
               width: double.infinity,
               height: 50,
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.cancel, size: 20),
-                label: const Text("Cancel", style: TextStyle(fontSize: 16)),
+                label: const Text('Cancel', style: TextStyle(fontSize: 16)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white70,
                   side: const BorderSide(color: Colors.white38),
