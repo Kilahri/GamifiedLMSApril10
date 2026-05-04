@@ -25,7 +25,7 @@ android {
     defaultConfig {
         // Your app ID (package name)
         applicationId = "com.example.elearningapp_flutter"
-        minSdk = 21
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -46,5 +46,3 @@ flutter {
 dependencies {
     // Add any additional dependencies here if needed
 }
-
-apply(plugin = "com.google.gms.google-services")

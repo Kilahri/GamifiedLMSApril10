@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:elearningapp_flutter/helpers/image_upload_helper.dart';
+import 'dart:io';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:elearningapp_flutter/helpers/content_cache.dart';
+import 'package:elearningapp_flutter/helpers/student_cache.dart';
+import 'package:elearningapp_flutter/helpers/content_fetcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:elearningapp_flutter/settings/saved_notes_screen.dart';
 
 // --- Enhanced Book Data Model with Full Content ---
 class Book {
@@ -62,7 +70,7 @@ final List<Book> scienceBooks = [
     image: "lib/assets/statesofmatter.jpg",
     summary:
         "Discover the super cool properties of matter and how it magically changes between solid, liquid, and gas states!",
-    theme: "Chemistry",
+    theme: "Changes of Matter",
     author: "Prof. Alex Chen",
     readTime: 15,
     funFact:
@@ -115,6 +123,56 @@ The coolest part? The difference between these three states is all about how muc
           ),
         ],
       ),
+      BookChapter(
+        title: "🌡️ Changing States: The Magic of Phase Changes",
+        content:
+            """Now for the really cool part - matter can change from one state to another! These changes are called phase changes, and they happen all around you every day.
+
+Melting: Solid to Liquid 🍦
+When you leave an ice cube on the counter, what happens? It melts! Melting is when a solid gets enough heat energy that its particles start moving faster and can slide past each other. The ice cube (solid water) becomes liquid water. Think about chocolate melting in your hand - the heat from your hand gives the chocolate particles enough energy to change from solid to liquid.
+
+Freezing: Liquid to Solid ❄️
+Freezing is the opposite of melting! When you put water in the freezer, it loses heat energy. The particles slow down and lock into fixed positions, forming ice. This is why popsicles work - you freeze juice to turn it from liquid to solid!
+
+Evaporation: Liquid to Gas ☀️
+Have you noticed puddles disappearing after rain? That's evaporation! When liquid water gets heat energy (like from the sun), some particles gain enough energy to break free and become gas (water vapor). This happens at the surface of liquids. Fun fact: This is how your wet hair dries!
+
+Condensation: Gas to Liquid 💧
+Condensation is when gas turns back into liquid. Ever seen water droplets form on a cold glass of lemonade? That's condensation! The water vapor in the air touches the cold glass, loses energy, and turns back into liquid water droplets.
+
+The Secret: It's All About Energy!
+All these changes happen because of energy - usually heat! Add energy (heat it up) and particles move faster, spreading apart. Remove energy (cool it down) and particles slow down, moving closer together.""",
+        keyPoints: [
+          "Melting: solid → liquid (add heat)",
+          "Freezing: liquid → solid (remove heat)",
+          "Evaporation: liquid → gas (add heat)",
+          "Condensation: gas → liquid (remove heat)",
+          "Energy controls state changes!",
+        ],
+        didYouKnow:
+            "🌟 Fun Fact: Water can skip the liquid phase entirely! Sublimation is when a solid becomes a gas directly (like dry ice), and deposition is when a gas becomes a solid directly (like frost forming on windows)!",
+        quizQuestions: [
+          QuizQuestion(
+            question: "What do we call it when water turns into ice?",
+            options: ["Melting", "Freezing", "Evaporation", "Condensation"],
+            correctAnswer: 1,
+            explanation:
+                "Correct! Freezing is when liquid water loses heat and becomes solid ice.",
+          ),
+          QuizQuestion(
+            question: "What causes puddles to disappear on a sunny day?",
+            options: [
+              "The ground absorbs it all",
+              "Animals drink it",
+              "Evaporation turns it to gas",
+              "It freezes",
+            ],
+            correctAnswer: 2,
+            explanation:
+                "Excellent! The sun's heat causes the water to evaporate, turning from liquid to invisible water vapor in the air!",
+          ),
+        ],
+      ),
     ],
   ),
   Book(
@@ -122,7 +180,7 @@ The coolest part? The difference between these three states is all about how muc
     image: "lib/assets/earthScience.png",
     summary:
         "Explore our amazing planet Earth from the inside out! Learn about its layers, rotation, seasons, and our place in the universe!",
-    theme: "Earth Science",
+    theme: "Solar System",
     author: "Dr. Maria Stone",
     readTime: 20,
     funFact:
@@ -158,6 +216,63 @@ The mantle's movement is super important because it causes the crust above to sh
           ),
         ],
       ),
+      BookChapter(
+        title: "🌏 Earth's Spin and Orbit",
+        content:
+            """Earth is like a giant spinning top floating in space! It does two important movements at the same time, and these movements give us day, night, and seasons.
+
+Earth's Rotation: The Daily Spin! 🌗
+Earth spins around like a top! This spinning is called rotation, and it takes exactly 24 hours for Earth to complete one full spin. This is why we have day and night!
+
+When your part of Earth faces the Sun, you have daytime - the Sun's light shines on you! When your part spins away from the Sun, you have nighttime. It's like a cosmic game of hide and seek with the Sun!
+
+Imagine standing on a merry-go-round - even though you're spinning, you don't feel dizzy because you're moving with it. Same with Earth! We're spinning at about 1,000 miles per hour, but we don't feel it because everything around us spins too!
+
+Earth's Revolution: The Yearly Journey! 🛤️
+While Earth spins, it's also traveling around the Sun! This journey is called revolution or orbit, and it takes 365 days (one year) to complete one trip around the Sun.
+
+Earth's path around the Sun isn't a perfect circle - it's slightly oval-shaped, called an ellipse. Earth stays in orbit because of gravity - the Sun's gravity pulls on Earth, keeping it from flying off into space!
+
+The Tilt That Gives Us Seasons! 🌸☀️🍂❄️
+Here's the super cool part: Earth doesn't spin straight up and down - it's tilted at 23.5 degrees, like a spinning top that's leaning to one side!
+
+This tilt is why we have seasons! When your part of Earth tilts toward the Sun, you get summer (more direct sunlight and longer days). When it tilts away, you get winter (less direct sunlight and shorter days). Spring and fall happen in between!""",
+        keyPoints: [
+          "Rotation: Earth spins once every 24 hours = day/night",
+          "Revolution: Earth orbits Sun in 365 days = one year",
+          "Earth tilts at 23.5 degrees",
+          "The tilt causes our four seasons",
+          "Gravity keeps Earth in orbit around the Sun",
+        ],
+        didYouKnow:
+            "🌟 Fun Fact: If Earth wasn't tilted, every place on Earth would have the same season all year round, and days would always be the same length! No summer vacations or winter holidays as we know them!",
+        quizQuestions: [
+          QuizQuestion(
+            question: "What causes day and night on Earth?",
+            options: [
+              "Earth's orbit around the Sun",
+              "Earth's rotation (spinning)",
+              "The Moon blocking the Sun",
+              "Clouds covering the Sun",
+            ],
+            correctAnswer: 1,
+            explanation:
+                "Perfect! Earth's rotation (spinning) causes day and night. When your side faces the Sun, it's day. When it faces away, it's night!",
+          ),
+          QuizQuestion(
+            question: "What causes the seasons?",
+            options: [
+              "Distance from the Sun",
+              "Earth's tilt",
+              "The Moon's position",
+              "Ocean currents",
+            ],
+            correctAnswer: 1,
+            explanation:
+                "Excellent! Earth's 23.5-degree tilt causes seasons. When your hemisphere tilts toward the Sun, it's summer. When it tilts away, it's winter!",
+          ),
+        ],
+      ),
     ],
   ),
 ];
@@ -168,7 +283,7 @@ final List<Book> spaceBooks = [
     image: "lib/assets/plantScience.jpg",
     summary:
         "Discover the amazing world of plants! Learn how they grow, make their own food, and reproduce in super cool ways!",
-    theme: "Biology",
+    theme: "Photosynthesis",
     author: "Dr. Green Leaf",
     readTime: 22,
     funFact:
@@ -211,20 +326,96 @@ Some plants, like carrots and sweet potatoes, also use their roots as storage co
           ),
         ],
       ),
+      BookChapter(
+        title: "🌞 Photosynthesis: How Plants Make Food!",
+        content:
+            """Get ready to learn about one of the most important processes on Earth - photosynthesis! This is how plants make their own food, and it's pretty magical!
+
+What is Photosynthesis? ✨
+Photosynthesis is like a recipe that plants use to make food (sugar). The word comes from "photo" (light) and "synthesis" (putting together). So plants literally use light to put together their food!
+
+The Magic Recipe! 🧪
+Here's what plants need:
+- Sunlight (the energy source) ☀️
+- Water (from the roots) 💧
+- Carbon dioxide (from the air) 💨
+- Chlorophyll (the green stuff in leaves) 🌿
+
+Plants mix these ingredients together in their leaves and create:
+- Glucose (sugar - their food!) 🍬
+- Oxygen (which we breathe!) 💨
+
+The recipe looks like this:
+6 CO₂ + 6 H₂O + Light Energy → C₆H₁₂O₆ + 6 O₂
+
+Where Does It Happen? 🌱
+Photosynthesis happens mainly in the leaves! Inside leaf cells are tiny structures called chloroplasts - these are like the plant's kitchen. Chloroplasts contain chlorophyll, which gives plants their green color AND captures sunlight!
+
+Why Is It Important? 🌍
+Photosynthesis is SUPER important for life on Earth!
+1. Plants make their own food to grow
+2. Plants produce oxygen that animals (including us!) need to breathe
+3. Plants are the start of most food chains - they feed herbivores, which feed carnivores
+4. Plants help clean the air by absorbing carbon dioxide
+
+Without photosynthesis, there would be no oxygen for us to breathe and no food for animals to eat!
+
+Cool Adaptations! 🌵
+Different plants have adapted photosynthesis to their environment:
+- Desert cacti do photosynthesis at night to save water
+- Water lilies have chlorophyll on top of their leaves to catch sunlight
+- Some plants in rainforests have huge leaves to catch more light in the shade!""",
+        keyPoints: [
+          "Photosynthesis = plants making food using sunlight",
+          "Ingredients: sunlight, water, CO₂, chlorophyll",
+          "Products: glucose (food) and oxygen",
+          "Happens in chloroplasts inside leaf cells",
+          "Provides oxygen and food for Earth's living things",
+        ],
+        didYouKnow:
+            "🌟 Fun Fact: One large tree can produce enough oxygen in a year for two people to breathe! And all the oxygen in Earth's atmosphere originally came from plants and algae doing photosynthesis!",
+        quizQuestions: [
+          QuizQuestion(
+            question: "What do plants need for photosynthesis?",
+            options: [
+              "Only water",
+              "Sunlight, water, and carbon dioxide",
+              "Only oxygen",
+              "Soil and darkness",
+            ],
+            correctAnswer: 1,
+            explanation:
+                "Perfect! Plants need sunlight (energy), water, and carbon dioxide to make food through photosynthesis!",
+          ),
+          QuizQuestion(
+            question: "What gas do plants release during photosynthesis?",
+            options: ["Carbon dioxide", "Nitrogen", "Oxygen", "Hydrogen"],
+            correctAnswer: 2,
+            explanation:
+                "Excellent! Plants release oxygen as a byproduct of photosynthesis - and that's the oxygen we breathe!",
+          ),
+        ],
+      ),
     ],
   ),
 ];
 
 final featuredBook = scienceBooks[0];
 
-// Reading progress tracking
+// Reading progress tracking (in-memory, cleared on logout)
 Map<String, Set<int>> readingProgress = {};
 Map<String, int> bookPoints = {};
+
+void resetReadingState() {
+  readingProgress = {};
+  bookPoints = {};
+}
 
 // ------------------------------------------------------------------
 
 class ReadScreen extends StatefulWidget {
-  const ReadScreen({super.key});
+  final String userId;
+  const ReadScreen({super.key, required this.userId});
 
   @override
   State<ReadScreen> createState() => _ReadScreenState();
@@ -233,74 +424,105 @@ class ReadScreen extends StatefulWidget {
 class _ReadScreenState extends State<ReadScreen> {
   String searchQuery = "";
   String selectedCategory = "All";
-  List<Book> teacherBooks = []; // NEW: Store teacher-created books
-  bool _isLoading = true; // NEW: Loading state
+
+  List<Map<String, dynamic>> allBooksRaw = [];
+  String? _studentSection;
+  bool _isLoading = true;
+  String _realUserId = '';
 
   @override
   void initState() {
     super.initState();
-    _loadTeacherBooks(); // NEW: Load teacher books on init
+    _realUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    readingProgress.clear();
+    bookPoints.clear();
+    _loadBooks();
+    _loadTotalPointsFromFirestore();
   }
 
-  // NEW: Load books created by teachers
-  Future<void> _loadTeacherBooks() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? booksJson = prefs.getString('teacher_books');
-
-    if (booksJson != null) {
-      try {
-        List<dynamic> decoded = jsonDecode(booksJson);
+  Future<void> _loadTotalPointsFromFirestore() async {
+    if (_realUserId.isEmpty) return;
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('reading_progress')
+              .doc(_realUserId)
+              .get();
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
         setState(() {
-          teacherBooks =
-              decoded.map((bookMap) {
-                // Convert the map back to Book object
-                return Book(
-                  title: bookMap['title'] ?? '',
-                  image: bookMap['image'] ?? 'lib/assets/book_default.png',
-                  summary: bookMap['summary'] ?? '',
-                  theme: bookMap['theme'] ?? 'General',
-                  author: bookMap['author'] ?? 'Unknown',
-                  readTime: bookMap['readTime'] ?? 15,
-                  funFact: bookMap['funFact'] ?? '',
-                  chapters:
-                      (bookMap['chapters'] as List?)?.map((chapterMap) {
-                        return BookChapter(
-                          title: chapterMap['title'] ?? '',
-                          content: chapterMap['content'] ?? '',
-                          keyPoints: List<String>.from(
-                            chapterMap['keyPoints'] ?? [],
-                          ),
-                          didYouKnow: chapterMap['didYouKnow'] ?? '',
-                          quizQuestions:
-                              (chapterMap['quizQuestions'] as List?)?.map((q) {
-                                return QuizQuestion(
-                                  question: q['question'] ?? '',
-                                  options: List<String>.from(
-                                    q['options'] ?? [],
-                                  ),
-                                  correctAnswer: q['correctAnswer'] ?? 0,
-                                  explanation: q['explanation'] ?? '',
-                                );
-                              }).toList() ??
-                              [],
-                        );
-                      }).toList() ??
-                      [],
-                );
-              }).toList();
-          _isLoading = false;
+          readingProgress.clear();
+          bookPoints.clear();
+          for (final key in data.keys) {
+            final value = data[key];
+            if (value is Map) {
+              final bookData = value as Map<String, dynamic>;
+              bookPoints[key] = bookData['points'] as int? ?? 0;
+              readingProgress[key] = Set<int>.from(
+                (bookData['completedChapters'] as List? ?? []).map(
+                  (e) => e as int,
+                ),
+              );
+            }
+          }
         });
-      } catch (e) {
-        print('Error loading teacher books: $e');
+      }
+    } catch (e) {
+      debugPrint('Error loading points: $e');
+    }
+  }
+
+  Future<void> _loadBooks({bool forceRefresh = false}) async {
+    if (allBooksRaw.isEmpty) setState(() => _isLoading = true);
+
+    try {
+      _studentSection = await StudentCache.getSection();
+
+      final books = await ContentFetcher.getBooksForSection(
+        _studentSection,
+        forceRefresh: forceRefresh,
+      );
+
+      if (mounted) {
         setState(() {
+          allBooksRaw = books;
           _isLoading = false;
         });
       }
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
+    } catch (e) {
+      debugPrint('Error loading books: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Book _mapToBook(Map<String, dynamic> bookMap) {
+    return Book(
+      title: bookMap['title'] ?? '',
+      image: bookMap['image'] ?? 'lib/assets/book_default.png',
+      summary: bookMap['summary'] ?? '',
+      theme: bookMap['theme'] ?? 'General',
+      author: bookMap['author'] ?? 'Unknown',
+      readTime: bookMap['readTime'] ?? 15,
+      funFact: bookMap['funFact'] ?? '',
+      chapters:
+          (bookMap['chapters'] as List? ?? []).map((chapterMap) {
+            return BookChapter(
+              title: chapterMap['title'] ?? '',
+              content: chapterMap['content'] ?? '',
+              keyPoints: List<String>.from(chapterMap['keyPoints'] ?? []),
+              didYouKnow: chapterMap['didYouKnow'] ?? '',
+              quizQuestions:
+                  (chapterMap['quizQuestions'] as List? ?? []).map((q) {
+                    return QuizQuestion(
+                      question: q['question'] ?? '',
+                      options: List<String>.from(q['options'] ?? []),
+                      correctAnswer: q['correctAnswer'] ?? 0,
+                      explanation: q['explanation'] ?? '',
+                    );
+                  }).toList(),
+            );
+          }).toList(),
+    );
   }
 
   int getTotalPoints() {
@@ -309,24 +531,24 @@ class _ReadScreenState extends State<ReadScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // UPDATED: Combine hardcoded books with teacher books
-    List<Book> allBooks = [...scienceBooks, ...spaceBooks, ...teacherBooks];
+    final int teacherCount =
+        allBooksRaw.where((b) => b['isDefault'] != true).length;
+    final Set<String> allThemes = {
+      'All',
+      ...allBooksRaw.map((b) => b['theme'] as String? ?? 'General'),
+    };
 
-    List<Book> filteredBooks =
-        allBooks.where((book) {
-          bool matchesSearch =
-              book.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-              book.theme.toLowerCase().contains(searchQuery.toLowerCase());
-          bool matchesCategory =
-              selectedCategory == "All" || book.theme == selectedCategory;
+    final List<Map<String, dynamic>> filteredBooksRaw =
+        allBooksRaw.where((bookMap) {
+          final title = (bookMap['title'] as String? ?? '').toLowerCase();
+          final theme = (bookMap['theme'] as String? ?? '').toLowerCase();
+          final matchesSearch =
+              title.contains(searchQuery.toLowerCase()) ||
+              theme.contains(searchQuery.toLowerCase());
+          final matchesCategory =
+              selectedCategory == 'All' || bookMap['theme'] == selectedCategory;
           return matchesSearch && matchesCategory;
         }).toList();
-
-    // Get all unique themes for filter chips (including teacher book themes)
-    Set<String> allThemes = {
-      "All",
-      ...allBooks.map((book) => book.theme).toSet(),
-    };
 
     if (_isLoading) {
       return Scaffold(
@@ -342,19 +564,28 @@ class _ReadScreenState extends State<ReadScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D102C),
         automaticallyImplyLeading: false,
-        title: const Text(
-          "📚 READ & LEARN",
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-            fontSize: 24,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "📚 READ & LEARN",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                fontSize: 22,
+              ),
+            ),
+            if (_studentSection != null)
+              Text(
+                _studentSection!,
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+          ],
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
-          // Points badge
           Container(
-            margin: const EdgeInsets.only(right: 16),
+            margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFFFFC107),
@@ -375,22 +606,15 @@ class _ReadScreenState extends State<ReadScreen> {
               ],
             ),
           ),
-          // NEW: Refresh button to reload teacher books
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white70),
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              _loadTeacherBooks();
-            },
+            onPressed: () => _loadBooks(forceRefresh: true),
             tooltip: 'Refresh books',
           ),
         ],
       ),
       body: ListView(
         children: [
-          // Search Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: TextField(
@@ -410,47 +634,42 @@ class _ReadScreenState extends State<ReadScreen> {
             ),
           ),
 
-          // Category Filters - UPDATED to show all themes dynamically
           SizedBox(
             height: 50,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children:
-                  allThemes
-                      .map(
-                        (category) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(category),
-                            selected: selectedCategory == category,
-                            onSelected: (selected) {
-                              setState(() => selectedCategory = category);
-                            },
-                            selectedColor: const Color(0xFF7B4DFF),
-                            backgroundColor: const Color(0xFF1C1F3E),
-                            labelStyle: TextStyle(
-                              color:
-                                  selectedCategory == category
-                                      ? Colors.white
-                                      : Colors.white70,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                  allThemes.map((category) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(category),
+                        selected: selectedCategory == category,
+                        onSelected:
+                            (selected) =>
+                                setState(() => selectedCategory = category),
+                        selectedColor: const Color(0xFF7B4DFF),
+                        backgroundColor: const Color(0xFF1C1F3E),
+                        labelStyle: TextStyle(
+                          color:
+                              selectedCategory == category
+                                  ? Colors.white
+                                  : Colors.white70,
+                          fontWeight: FontWeight.bold,
                         ),
-                      )
-                      .toList(),
+                      ),
+                    );
+                  }).toList(),
             ),
           ),
 
           const SizedBox(height: 10),
 
-          // Featured Book
-          if (searchQuery.isEmpty && allBooks.isNotEmpty)
-            _featuredBookBanner(context, allBooks.first),
+          if (searchQuery.isEmpty && allBooksRaw.isNotEmpty)
+            _featuredBookBanner(context, allBooksRaw.first),
 
-          // Fun Fact Card
-          if (searchQuery.isEmpty && allBooks.isNotEmpty)
+          if (searchQuery.isEmpty && allBooksRaw.isNotEmpty)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               padding: const EdgeInsets.all(16),
@@ -466,7 +685,7 @@ class _ReadScreenState extends State<ReadScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      allBooks.first.funFact,
+                      allBooksRaw.first['funFact'] as String? ?? '',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -478,8 +697,7 @@ class _ReadScreenState extends State<ReadScreen> {
               ),
             ),
 
-          // NEW: Show count of teacher books if any
-          if (teacherBooks.isNotEmpty && searchQuery.isEmpty)
+          if (searchQuery.isEmpty && teacherCount > 0)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
@@ -487,7 +705,7 @@ class _ReadScreenState extends State<ReadScreen> {
                   const Icon(Icons.school, color: Colors.orange, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    '${teacherBooks.length} book${teacherBooks.length == 1 ? '' : 's'} created by teachers',
+                    '$teacherCount teacher book${teacherCount == 1 ? '' : 's'} available for $_studentSection',
                     style: const TextStyle(
                       color: Colors.orange,
                       fontSize: 13,
@@ -498,8 +716,7 @@ class _ReadScreenState extends State<ReadScreen> {
               ),
             ),
 
-          // Books Grid
-          if (filteredBooks.isEmpty)
+          if (filteredBooksRaw.isEmpty)
             const Padding(
               padding: EdgeInsets.all(40),
               child: Center(
@@ -510,7 +727,7 @@ class _ReadScreenState extends State<ReadScreen> {
               ),
             )
           else
-            _bookGrid(context, filteredBooks),
+            _bookGrid(context, filteredBooksRaw),
 
           const SizedBox(height: 20),
         ],
@@ -518,14 +735,25 @@ class _ReadScreenState extends State<ReadScreen> {
     );
   }
 
-  Widget _featuredBookBanner(BuildContext context, Book book) {
+  Widget _featuredBookBanner(
+    BuildContext context,
+    Map<String, dynamic> bookMap,
+  ) {
+    final book = _mapToBook(bookMap);
+    final teacherName = bookMap['teacherName'] as String? ?? 'SciLearn';
+
     return GestureDetector(
       onTap: () async {
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(builder: (ctx) => BookReaderScreen(book: book)),
+          MaterialPageRoute(
+            builder: (ctx) => BookReaderScreen(book: book, userId: _realUserId),
+          ),
         );
-        if (result == true) setState(() {});
+        if (result == true) {
+          _loadTotalPointsFromFirestore();
+          setState(() {});
+        }
       },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -548,22 +776,10 @@ class _ReadScreenState extends State<ReadScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                book.image,
-                height: 120,
-                width: 80,
-                fit: BoxFit.cover,
-                errorBuilder:
-                    (context, error, stackTrace) => Container(
-                      height: 120,
-                      width: 80,
-                      color: const Color(0xFF9E7CFF),
-                      child: const Icon(
-                        Icons.star,
-                        color: Colors.white,
-                        size: 40,
-                      ),
-                    ),
+              child: _buildBookImage(
+                bookMap['image'] as String? ?? '',
+                120,
+                80,
               ),
             ),
             const SizedBox(width: 15),
@@ -591,7 +807,21 @@ class _ReadScreenState extends State<ReadScreen> {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.school, color: Colors.white70, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        teacherName,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
                   Row(
                     children: [
                       const Icon(
@@ -619,7 +849,7 @@ class _ReadScreenState extends State<ReadScreen> {
     );
   }
 
-  Widget _bookGrid(BuildContext context, List<Book> books) {
+  Widget _bookGrid(BuildContext context, List<Map<String, dynamic>> booksRaw) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: GridView.builder(
@@ -627,27 +857,35 @@ class _ReadScreenState extends State<ReadScreen> {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.70,
+          childAspectRatio: 0.65,
         ),
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: books.length,
+        itemCount: booksRaw.length,
         itemBuilder: (context, index) {
-          final book = books[index];
-          return _bookCard(context, book);
+          return _bookCard(context, booksRaw[index]);
         },
       ),
     );
   }
 
-  Widget _bookCard(BuildContext context, Book book) {
+  Widget _bookCard(BuildContext context, Map<String, dynamic> bookMap) {
+    final book = _mapToBook(bookMap);
+    final teacherName = bookMap['teacherName'] as String? ?? 'SciLearn';
+    final isDefault = bookMap['isDefault'] == true;
+
     return InkWell(
       onTap: () async {
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(builder: (ctx) => BookReaderScreen(book: book)),
+          MaterialPageRoute(
+            builder: (ctx) => BookReaderScreen(book: book, userId: _realUserId),
+          ),
         );
-        if (result == true) setState(() {});
+        if (result == true) {
+          _loadTotalPointsFromFirestore();
+          setState(() {});
+        }
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -669,68 +907,85 @@ class _ReadScreenState extends State<ReadScreen> {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
-              child: Image.asset(
-                book.image,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder:
-                    (context, error, stackTrace) => Container(
-                      height: 160,
-                      color: Colors.grey.shade700,
-                      child: const Center(
-                        child: Icon(
-                          Icons.menu_book,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                      ),
-                    ),
+              child: _buildBookImage(
+                bookMap['image'] as String? ?? '',
+                130,
+                double.infinity,
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.theme,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: _getThemeColor(book.theme),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    book.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: Colors.white54,
-                        size: 12,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      bookMap['theme'] as String? ?? 'General',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _getThemeColor(book.theme),
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        "${book.readTime} min",
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      book.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Icon(
+                          isDefault ? Icons.auto_awesome : Icons.school,
+                          color:
+                              isDefault
+                                  ? Colors.amber
+                                  : const Color(0xFF7B4DFF),
+                          size: 12,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            teacherName,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color:
+                                  isDefault
+                                      ? Colors.amber
+                                      : const Color(0xFF7B4DFF),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          color: Colors.white54,
+                          size: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${book.readTime} min",
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -739,16 +994,50 @@ class _ReadScreenState extends State<ReadScreen> {
     );
   }
 
+  Widget _buildBookImage(String imagePath, double height, double width) {
+    final sourceType = ImageUploadHelper.getImageSourceType(imagePath);
+    if (sourceType == ImageSourceType.file) {
+      return Image.file(
+        File(imagePath),
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _bookImagePlaceholder(height, width),
+      );
+    } else {
+      return Image.asset(
+        imagePath,
+        height: height,
+        width: width,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _bookImagePlaceholder(height, width),
+      );
+    }
+  }
+
+  Widget _bookImagePlaceholder(double height, double width) {
+    return Container(
+      height: height,
+      width: width,
+      color: Colors.grey.shade700,
+      child: const Center(
+        child: Icon(Icons.menu_book, color: Colors.white, size: 40),
+      ),
+    );
+  }
+
   Color _getThemeColor(String theme) {
     switch (theme) {
-      case "Biology":
+      case "Photosynthesis":
         return Colors.lightGreenAccent;
-      case "Chemistry":
+      case "Changes of Matter":
         return Colors.purpleAccent;
-      case "Earth Science":
+      case "Solar System":
         return Colors.blueAccent;
-      case "Physics":
+      case "Water Cycle":
         return Colors.cyanAccent;
+      case "Ecosystem & Food Web":
+        return Colors.orangeAccent;
       default:
         return Colors.white70;
     }
@@ -761,8 +1050,8 @@ class _ReadScreenState extends State<ReadScreen> {
 
 class BookReaderScreen extends StatefulWidget {
   final Book book;
-
-  const BookReaderScreen({super.key, required this.book});
+  final String userId;
+  const BookReaderScreen({super.key, required this.book, required this.userId});
 
   @override
   State<BookReaderScreen> createState() => _BookReaderScreenState();
@@ -775,16 +1064,275 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
   int currentQuizIndex = 0;
   int? selectedAnswer;
   bool showExplanation = false;
+  bool showChapterList = false;
+
+  // ── Notes ──────────────────────────────────────────────────────────
+  final TextEditingController _noteController = TextEditingController();
+
+  String get _realUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
     super.initState();
-    // Initialize reading progress for this book
-    if (!readingProgress.containsKey(widget.book.title)) {
-      readingProgress[widget.book.title] = {};
+    _loadProgress();
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  // ── Notes helpers ──────────────────────────────────────────────────
+
+  /// Loads the saved note for the given chapter into [_noteController].
+  Future<void> _loadExistingNote(String chapterTitle) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'guest';
+    final prefs = await SharedPreferences.getInstance();
+    final notesJson = prefs.getString('book_notes_$uid');
+    if (notesJson == null) {
+      _noteController.clear();
+      return;
     }
-    if (!bookPoints.containsKey(widget.book.title)) {
-      bookPoints[widget.book.title] = 0;
+    final notes = List<Map<String, dynamic>>.from(jsonDecode(notesJson));
+    final key = '${widget.book.title} - $chapterTitle';
+    final match = notes.where((n) => n['title'] == key).toList();
+    _noteController.text =
+        match.isNotEmpty ? (match.last['content'] ?? '') : '';
+  }
+
+  /// Opens the notes bottom sheet for the current chapter.
+  Future<void> _showNotesSheet(
+    BuildContext context,
+    String chapterTitle,
+  ) async {
+    await _loadExistingNote(chapterTitle);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1C1F3E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header ──
+              Row(
+                children: [
+                  const Icon(
+                    Icons.edit_note,
+                    color: Color(0xFF7B4DFF),
+                    size: 26,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'My Notes',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          chapterTitle,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // ── Text field ──
+              TextField(
+                controller: _noteController,
+                maxLines: 6,
+                autofocus: true,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Write your notes for this chapter...',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                  filled: true,
+                  fillColor: const Color(0xFF0D102C),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(14),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // ── Save button ──
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final text = _noteController.text.trim();
+                    if (text.isEmpty) return;
+
+                    await NotesHelper.saveBookNote(
+                      bookTitle: widget.book.title,
+                      chapterTitle: chapterTitle,
+                      content: text,
+                    );
+
+                    if (!mounted) return;
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Note saved! ✏️'),
+                        backgroundColor: Color(0xFF7B4DFF),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.save, color: Colors.white),
+                  label: const Text(
+                    'Save Note',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7B4DFF),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Firebase progress helpers ──────────────────────────────────────
+
+  Future<void> _loadProgress() async {
+    readingProgress[widget.book.title] ??= {};
+    bookPoints[widget.book.title] ??= 0;
+
+    if (_realUserId.isEmpty) return;
+
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('reading_progress')
+              .doc(_realUserId)
+              .get();
+
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        final bookData = data[widget.book.title] as Map<String, dynamic>?;
+        if (bookData != null) {
+          setState(() {
+            readingProgress[widget.book.title] = Set<int>.from(
+              (bookData['completedChapters'] as List? ?? []).map(
+                (e) => e as int,
+              ),
+            );
+            bookPoints[widget.book.title] = bookData['points'] as int? ?? 0;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading progress: $e');
+    }
+
+    await _applyQuizBonus();
+  }
+
+  Future<void> _saveProgress() async {
+    if (_realUserId.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('reading_progress')
+          .doc(_realUserId)
+          .set({
+            widget.book.title: {
+              'completedChapters':
+                  readingProgress[widget.book.title]?.toList() ?? [],
+              'points': bookPoints[widget.book.title] ?? 0,
+              'lastRead': FieldValue.serverTimestamp(),
+            },
+          }, SetOptions(merge: true));
+      debugPrint('Progress saved for uid: $_realUserId');
+    } catch (e) {
+      debugPrint('Error saving progress: $e');
+    }
+  }
+
+  Future<void> _applyQuizBonus() async {
+    if (_realUserId.isEmpty) return;
+    try {
+      final quizDoc =
+          await FirebaseFirestore.instance
+              .collection('quiz_scores')
+              .doc(_realUserId)
+              .get();
+      if (!quizDoc.exists) return;
+      final data = quizDoc.data()!;
+      final topic = widget.book.theme;
+      final quizBest = (data[topic]?['bestScore'] as int?) ?? 0;
+
+      final progressDoc =
+          await FirebaseFirestore.instance
+              .collection('reading_progress')
+              .doc(_realUserId)
+              .get();
+      final progressData = progressDoc.data() ?? {};
+      final bonusKey = '${widget.book.title}_quizBonus';
+      final alreadyBonused = progressData[bonusKey] as bool? ?? false;
+
+      if (quizBest > 0 && !alreadyBonused) {
+        if (mounted) {
+          setState(() {
+            bookPoints[widget.book.title] =
+                (bookPoints[widget.book.title] ?? 0) + quizBest;
+          });
+        }
+        await _saveProgress();
+        await FirebaseFirestore.instance
+            .collection('reading_progress')
+            .doc(_realUserId)
+            .set({bonusKey: true}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('Error applying quiz bonus: $e');
     }
   }
 
@@ -795,11 +1343,13 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         bookPoints[widget.book.title] = bookPoints[widget.book.title]! + 10;
       }
     });
+    _saveProgress();
   }
+
+  // ── Build ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    // Check if book has chapters
     if (widget.book.chapters.isEmpty) {
       return WillPopScope(
         onWillPop: () async {
@@ -854,7 +1404,7 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
 
     final chapter = widget.book.chapters[currentChapterIndex];
     final progress =
-        widget.book.chapters.length > 0
+        widget.book.chapters.isNotEmpty
             ? (currentChapterIndex + 1) / widget.book.chapters.length
             : 0.0;
     final isChapterRead =
@@ -878,6 +1428,23 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
+            // ── Notes button ──────────────────────────────────────────
+            IconButton(
+              icon: const Icon(Icons.edit_note, color: Colors.white),
+              tooltip: 'Take Notes',
+              onPressed: () => _showNotesSheet(context, chapter.title),
+            ),
+            // ── Chapter list ──────────────────────────────────────────
+            IconButton(
+              icon: const Icon(Icons.list),
+              onPressed: () {
+                setState(() {
+                  showChapterList = !showChapterList;
+                });
+              },
+              tooltip: 'Chapter List',
+            ),
+            // ── Font size ─────────────────────────────────────────────
             IconButton(
               icon: const Icon(Icons.text_fields),
               onPressed: () => _showFontSizeDialog(),
@@ -886,7 +1453,6 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
         ),
         body: Column(
           children: [
-            // Progress Bar
             LinearProgressIndicator(
               value: progress,
               backgroundColor: const Color(0xFF1C1F3E),
@@ -896,190 +1462,362 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
             ),
 
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Chapter completion badge
-                    if (isChapterRead)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.check_circle,
-                              color: Colors.white,
-                              size: 16,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isChapterRead)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                            SizedBox(width: 4),
-                            Text(
-                              "Completed!",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 10),
-
-                    // Chapter Info
-                    Text(
-                      "Chapter ${currentChapterIndex + 1} of ${widget.book.chapters.length}",
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      chapter.title,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Content
-                    Text(
-                      chapter.content,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        height: 1.7,
-                        color: Colors.white70,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    // Did You Know Card
-                    if (chapter.didYouKnow.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.emoji_objects,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                chapter.didYouKnow,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 20),
-
-                    // Key Points Section
-                    if (chapter.keyPoints.isNotEmpty)
-                      ExpansionTile(
-                        title: const Text(
-                          "🔑 Key Points",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        iconColor: Colors.white,
-                        collapsedIconColor: Colors.white54,
-                        children:
-                            chapter.keyPoints.map((point) {
-                              return ListTile(
-                                leading: const Icon(
-                                  Icons.check_circle,
-                                  color: Color(0xFF7B4DFF),
-                                  size: 20,
-                                ),
-                                title: Text(
-                                  point,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                      ),
-
-                    const SizedBox(height: 20),
-
-                    // Quiz Section - only if there are quiz questions
-                    if (chapter.quizQuestions.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1C1F3E),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFF7B4DFF),
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.quiz,
-                                  color: Color(0xFF7B4DFF),
-                                  size: 28,
+                                  Icons.check_circle,
+                                  color: Colors.white,
+                                  size: 16,
                                 ),
-                                SizedBox(width: 10),
+                                SizedBox(width: 4),
                                 Text(
-                                  "Test Your Knowledge!",
+                                  "Completed!",
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 18,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 20),
-                            _buildQuizQuestion(
-                              chapter.quizQuestions[currentQuizIndex],
+                          ),
+                        const SizedBox(height: 10),
+
+                        Text(
+                          "Chapter ${currentChapterIndex + 1} of ${widget.book.chapters.length}",
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          chapter.title,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        Text(
+                          chapter.content,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            height: 1.7,
+                            color: Colors.white70,
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+
+                        if (chapter.didYouKnow.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          ],
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.emoji_objects,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    chapter.didYouKnow,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 20),
+
+                        if (chapter.keyPoints.isNotEmpty)
+                          ExpansionTile(
+                            title: const Text(
+                              "🔑 Key Points",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                            iconColor: Colors.white,
+                            collapsedIconColor: Colors.white54,
+                            children:
+                                chapter.keyPoints.map((point) {
+                                  return ListTile(
+                                    leading: const Icon(
+                                      Icons.check_circle,
+                                      color: Color(0xFF7B4DFF),
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      point,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+
+                        const SizedBox(height: 20),
+
+                        if (chapter.quizQuestions.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1C1F3E),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFF7B4DFF),
+                                width: 2,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.quiz,
+                                      color: Color(0xFF7B4DFF),
+                                      size: 28,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      "Test Your Knowledge!",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                                _buildQuizQuestion(
+                                  chapter.quizQuestions[currentQuizIndex],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+
+                  // ── Chapter list overlay ─────────────────────────────
+                  if (showChapterList)
+                    GestureDetector(
+                      onTap: () => setState(() => showChapterList = false),
+                      child: Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Container(
+                            margin: const EdgeInsets.all(20),
+                            constraints: const BoxConstraints(maxWidth: 500),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1C1F3E),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF7B4DFF),
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(16),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        "📖 Chapters",
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                        ),
+                                        onPressed:
+                                            () => setState(
+                                              () => showChapterList = false,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Flexible(
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: widget.book.chapters.length,
+                                    itemBuilder: (context, index) {
+                                      final chap = widget.book.chapters[index];
+                                      final isRead =
+                                          readingProgress[widget.book.title]
+                                              ?.contains(index) ??
+                                          false;
+                                      final isCurrent =
+                                          index == currentChapterIndex;
+
+                                      return InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            currentChapterIndex = index;
+                                            currentQuizIndex = 0;
+                                            selectedAnswer = null;
+                                            showExplanation = false;
+                                            showChapterList = false;
+                                          });
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                isCurrent
+                                                    ? const Color(
+                                                      0xFF7B4DFF,
+                                                    ).withOpacity(0.2)
+                                                    : Colors.transparent,
+                                            border: const Border(
+                                              bottom: BorderSide(
+                                                color: Color(0xFF2A2D4E),
+                                                width: 1,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      isCurrent
+                                                          ? const Color(
+                                                            0xFF7B4DFF,
+                                                          )
+                                                          : const Color(
+                                                            0xFF2A2D4E,
+                                                          ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    "${index + 1}",
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      chap.title,
+                                                      style: TextStyle(
+                                                        color:
+                                                            isCurrent
+                                                                ? Colors.white
+                                                                : Colors
+                                                                    .white70,
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            isCurrent
+                                                                ? FontWeight
+                                                                    .bold
+                                                                : FontWeight
+                                                                    .normal,
+                                                      ),
+                                                    ),
+                                                    if (chap
+                                                        .quizQuestions
+                                                        .isNotEmpty)
+                                                      Text(
+                                                        "${chap.quizQuestions.length} quiz ${chap.quizQuestions.length == 1 ? 'question' : 'questions'}",
+                                                        style: const TextStyle(
+                                                          color: Colors.white54,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (isRead)
+                                                const Icon(
+                                                  Icons.check_circle,
+                                                  color: Color(0xFF4CAF50),
+                                                  size: 24,
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-
-                    const SizedBox(height: 40),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
 
-            // Navigation Bar
+            // ── Bottom navigation ──────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
@@ -1210,11 +1948,7 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
               onPressed:
                   showExplanation
                       ? null
-                      : () {
-                        setState(() {
-                          selectedAnswer = index;
-                        });
-                      },
+                      : () => setState(() => selectedAnswer = index),
               style: ElevatedButton.styleFrom(
                 backgroundColor: buttonColor,
                 padding: const EdgeInsets.all(16),
@@ -1253,6 +1987,7 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
                 if (selectedAnswer == question.correctAnswer) {
                   bookPoints[widget.book.title] =
                       bookPoints[widget.book.title]! + 5;
+                  _saveProgress();
                 }
               });
             },
@@ -1419,11 +2154,33 @@ class _BookReaderScreenState extends State<BookReaderScreen> {
                       max: 24,
                       divisions: 12,
                       activeColor: const Color(0xFF7B4DFF),
+                      inactiveColor: const Color(0xFF2A2D4E),
                       label: fontSize.round().toString(),
                       onChanged: (value) {
                         setDialogState(() => fontSize = value);
                         setState(() => fontSize = value);
                       },
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "12",
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                        Text(
+                          "${fontSize.round()}",
+                          style: const TextStyle(
+                            color: Color(0xFF7B4DFF),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Text(
+                          "24",
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      ],
                     ),
                   ],
                 );

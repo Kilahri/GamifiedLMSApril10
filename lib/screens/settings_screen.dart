@@ -243,22 +243,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // Student Tools Section
           _buildSectionTitle("Student Tools & Data"),
           _buildSettingsTile(
-            icon: Icons.bar_chart,
-            title: "View Progress & Badges",
-            subtitle: "See your mastery levels and unlocked achievements",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder:
-                      (context) => IntegratedAnalyticsScreen(
-                        username: _currentUsername, // ✅ Add username parameter
-                      ),
-                ),
-              );
-            },
-          ),
-          _buildSettingsTile(
             icon: Icons.bookmark_border,
             title: 'Saved Items & Notes',
             subtitle: 'Review your saved lessons and notes',
@@ -354,14 +338,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 20),
 
-          // Help & Support Section
-          _buildSectionTitle("Help & Support"),
-          _buildSettingsTile(
-            icon: Icons.help_outline,
-            title: "Help Center & FAQ",
-            subtitle: "Find answers to common questions",
-            onTap: () => _showFunctionalityDialog("Help Center"),
-          ),
           _buildSettingsTile(
             icon: Icons.email_outlined,
             title: "Contact Support",

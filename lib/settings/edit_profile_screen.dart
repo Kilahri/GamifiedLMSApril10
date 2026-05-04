@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:elearningapp_flutter/services/firebase_services.dart';
 
 // Theme Colors
 const Color kPrimaryColor = Color(0xFF1B263B);
@@ -29,8 +31,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final TextEditingController _parentContactController =
       TextEditingController();
 
-  String? selectedSection;
-  final List<String> sections = ["Section A", "Section B", "Section C"];
+  // ── FIX: section is stored but NEVER editable by students ──────────────
+  // Teachers can still see all three sections in TeacherContentManagement
+  // because that screen uses its own SectionSelector widget.
+  String? _studentSection; // read from Firestore; shown read-only in UI
 
   bool _isLoading = true;
   bool _obscurePassword = true;
@@ -54,139 +58,150 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final uid = FirebaseService.currentUser!.uid;
+      final profile = await FirebaseService.getUserProfile(uid);
 
-    setState(() {
-      userRole = prefs.getString("role") ?? "student";
-      _usernameController.text = widget.currentUsername;
-      _passwordController.text = prefs.getString("password") ?? "";
+      if (profile == null) return;
 
-      // Load role-specific full name
-      if (userRole == "teacher") {
-        _nameController.text =
-            prefs.getString("teacher_name_${widget.currentUsername}") ??
-            prefs.getString("name") ??
-            "";
-      } else {
-        _nameController.text =
-            prefs.getString("student_name_${widget.currentUsername}") ??
-            prefs.getString("name") ??
-            "";
-      }
+      setState(() {
+        userRole = profile['role'] ?? 'student';
+        _nameController.text = profile['displayName'] ?? '';
+        _displayNameController.text =
+            profile['displayName'] ?? widget.currentUsername;
+        _usernameController.text =
+            profile['username'] ?? widget.currentUsername;
+        _passwordController.text = '';
 
-      // Load display name
-      String? displayName = prefs.getString(
-        "display_name_${widget.currentUsername}",
-      );
-      _displayNameController.text = displayName ?? widget.currentUsername;
+        if (userRole == 'student') {
+          // Store the section locally — it will be displayed read-only.
+          _studentSection = profile['section'] as String?;
+          _studentIdController.text = profile['studentId'] ?? '';
+          _parentContactController.text = profile['parentContact'] ?? '';
+        }
 
-      // Load student-specific data
-      if (userRole == "student") {
-        selectedSection = prefs.getString("section");
-        _studentIdController.text = prefs.getString("studentId") ?? "";
-        _parentContactController.text = prefs.getString("parentContact") ?? "";
-      }
-
-      _isLoading = false;
-    });
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveProfile() async {
     if (_nameController.text.trim().isEmpty ||
-        _usernameController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
+        _usernameController.text.trim().isEmpty) {
+      _showErrorDialog('Please fill in all required fields (Name, Username).');
+      return;
+    }
+
+    // ── FIX: students must have a section assigned (set by admin/teacher).
+    //         We do NOT validate whether they "selected" one since the field
+    //         is read-only — we just check it exists.
+    if (userRole == 'student' && _studentSection == null) {
       _showErrorDialog(
-        "Please fill in all required fields (Name, Username, Password).",
+        'Your account has no section assigned. Please contact your teacher.',
       );
       return;
     }
 
-    if (userRole == "student" && selectedSection == null) {
-      _showErrorDialog("Please select your Section.");
-      return;
-    }
+    setState(() => _isLoading = true);
 
-    String newUsername = _usernameController.text.trim();
-    bool usernameChanged = newUsername != widget.currentUsername;
+    try {
+      final uid = FirebaseService.currentUser!.uid;
+      final newUsername = _usernameController.text.trim();
+      final newPassword = _passwordController.text.trim();
+      final usernameChanged = newUsername != widget.currentUsername;
 
-    final prefs = await SharedPreferences.getInstance();
-
-    // Save display name
-    if (usernameChanged) {
-      await prefs.remove("display_name_${widget.currentUsername}");
-      await prefs.setString(
-        "display_name_$newUsername",
-        _displayNameController.text.trim(),
-      );
-    } else {
-      await prefs.setString(
-        "display_name_${widget.currentUsername}",
-        _displayNameController.text.trim(),
-      );
-    }
-
-    // Save role-specific full name
-    if (userRole == "teacher") {
+      // 1. If username changed, check it's not already taken.
       if (usernameChanged) {
-        await prefs.remove("teacher_name_${widget.currentUsername}");
-        await prefs.setString(
-          "teacher_name_$newUsername",
-          _nameController.text.trim(),
-        );
-      } else {
-        await prefs.setString(
-          "teacher_name_${widget.currentUsername}",
-          _nameController.text.trim(),
+        final existing = await FirebaseService.findUserByUsername(newUsername);
+        if (existing != null && existing['uid'] != uid) {
+          _showErrorDialog('Username already taken. Please choose another.');
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final user = FirebaseService.currentUser!;
+        await user.verifyBeforeUpdateEmail(
+          '${newUsername.toLowerCase()}@scilearn.internal',
         );
       }
-    } else {
-      if (usernameChanged) {
-        await prefs.remove("student_name_${widget.currentUsername}");
-        await prefs.setString(
-          "student_name_$newUsername",
-          _nameController.text.trim(),
-        );
-      } else {
-        await prefs.setString(
-          "student_name_${widget.currentUsername}",
-          _nameController.text.trim(),
-        );
+
+      // 2. Update password if user entered a new one.
+      if (newPassword.isNotEmpty) {
+        if (newPassword.length < 6) {
+          _showErrorDialog('Password must be at least 6 characters.');
+          setState(() => _isLoading = false);
+          return;
+        }
+        await FirebaseService.currentUser!.updatePassword(newPassword);
       }
-    }
 
-    // Save common data
-    await prefs.setString("name", _nameController.text.trim());
-    await prefs.setString("username", newUsername);
-    await prefs.setString("password", _passwordController.text);
-    await prefs.setString("role", userRole);
+      // 3. Update Firestore profile.
+      //    NOTE: 'section' is intentionally NOT included in the update map
+      //    for students — it can only be changed by a teacher/admin directly
+      //    in Firestore or via a dedicated admin tool.
+      final Map<String, dynamic> updates = {
+        'displayName': _nameController.text.trim(),
+        'leaderboardName': _displayNameController.text.trim(),
+        'username': newUsername,
+      };
 
-    // Save student-specific data
-    if (userRole == "student") {
-      await prefs.setString("section", selectedSection!);
-      await prefs.setString("studentId", _studentIdController.text.trim());
-      await prefs.setString(
-        "parentContact",
-        _parentContactController.text.trim(),
-      );
-    }
+      if (userRole == 'student') {
+        // Only non-sensitive academic fields that students are allowed to edit.
+        updates['studentId'] = _studentIdController.text.trim();
+        updates['parentContact'] = _parentContactController.text.trim();
+        // ── 'section' is deliberately omitted here ──────────────────────
+      }
 
-    if (!mounted) return;
+      await FirebaseService.updateUserProfile(uid, updates);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text("Profile updated successfully!"),
-          ],
+      // 4. Update leaderboard display name.
+      try {
+        final xp = await FirebaseService.getTotalXP(
+          uid,
+        ).timeout(const Duration(seconds: 8));
+        await FirebaseService.updateLeaderboard(
+          uid: uid,
+          displayName: _displayNameController.text.trim(),
+          xp: xp,
+        ).timeout(const Duration(seconds: 8));
+      } catch (_) {
+        // Non-critical — profile was already saved; leaderboard update can be skipped
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Profile updated successfully!'),
+            ],
+          ),
+          backgroundColor: Color(0xFF4CAF50),
+          duration: Duration(seconds: 2),
         ),
-        backgroundColor: Color(0xFF4CAF50),
-        duration: Duration(seconds: 2),
-      ),
-    );
+      );
 
-    Navigator.pop(context, usernameChanged ? newUsername : null);
+      Navigator.pop(context, usernameChanged ? newUsername : null);
+    } on FirebaseAuthException catch (e) {
+      String msg = 'Failed to update profile.';
+      if (e.code == 'requires-recent-login') {
+        msg =
+            'For security, please log out and log back in before changing '
+            'your username or password.';
+      } else if (e.code == 'weak-password') {
+        msg = 'Password too weak. Use at least 6 characters.';
+      }
+      _showErrorDialog(msg);
+    } catch (e) {
+      _showErrorDialog('An error occurred. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _showErrorDialog(String message) {
@@ -282,60 +297,69 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _buildDropdown({
-    required String label,
-    required IconData icon,
-    required String? value,
-    required List<String> items,
-    required Function(String?) onChanged,
-    bool required = false,
-  }) {
+  // ── FIX: New read-only section widget (replaces the editable dropdown) ──
+  Widget _buildReadOnlySectionField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        const Row(
           children: [
             Text(
-              label,
-              style: const TextStyle(
+              'Section',
+              style: TextStyle(
                 color: kHighlightColor,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (required)
-              const Text(
-                " *",
-                style: TextStyle(color: Colors.redAccent, fontSize: 14),
-              ),
+            Text(' *', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
           ],
         ),
         const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: value,
-          onChanged: onChanged,
-          dropdownColor: kCardColor,
-          style: const TextStyle(color: Colors.white, fontSize: kLargeFontSize),
-          items:
-              items
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: kAccentColor),
-            filled: true,
-            fillColor: kCardColor,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: kAccentColor.withOpacity(0.3)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: kAccentColor.withOpacity(0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: kHighlightColor, width: 2),
-            ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: kCardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: kAccentColor.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.group, color: kAccentColor),
+              const SizedBox(width: 12),
+              Text(
+                _studentSection ?? 'Not assigned',
+                style: TextStyle(
+                  color:
+                      _studentSection != null ? Colors.white : Colors.white38,
+                  fontSize: kLargeFontSize,
+                ),
+              ),
+              const Spacer(),
+              // Lock icon signals clearly that this field cannot be edited
+              Icon(Icons.lock_outline, color: kAccentColor, size: 18),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 13, color: Colors.white38),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'Your section is assigned by your teacher and cannot be changed here.',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -469,29 +493,108 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
             _buildSectionHeader("Account Credentials", Icons.vpn_key),
 
-            _buildTextField(
-              controller: _usernameController,
-              label: "Username",
-              icon: Icons.account_circle,
-              hint: "Choose a unique username",
-              required: true,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Text(
+                      'Username',
+                      style: TextStyle(
+                        color: kHighlightColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      ' *',
+                      style: TextStyle(color: Colors.redAccent, fontSize: 14),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kCardColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: kAccentColor.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.account_circle, color: kAccentColor),
+                      const SizedBox(width: 12),
+                      Text(
+                        _usernameController.text,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: kLargeFontSize,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.lock_outline, color: kAccentColor, size: 18),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 13,
+                        color: Colors.white38,
+                      ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Your username can only be changed by an administrator.',
+                          style: TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+
+            _buildTextField(
+              controller: _passwordController,
+              label: "New Password (optional)",
+              icon: Icons.lock,
+              hint: "Leave blank to keep current password",
+              obscure: _obscurePassword,
+              required: false,
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  color: kAccentColor,
+                ),
+                onPressed:
+                    () => setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ),
+            const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 12),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: Colors.amber.shade300,
-                  ),
+                  Icon(Icons.info_outline, size: 14, color: Colors.white38),
                   const SizedBox(width: 6),
-                  Expanded(
+                  const Expanded(
                     child: Text(
-                      "Changing username will update your login credentials",
+                      "Only fill this in if you want to change your password",
                       style: TextStyle(
-                        color: Colors.amber.shade300,
+                        color: Colors.white38,
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                       ),
@@ -501,37 +604,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ),
 
-            _buildTextField(
-              controller: _passwordController,
-              label: "Password",
-              icon: Icons.lock,
-              hint: "Enter your password",
-              obscure: _obscurePassword,
-              required: true,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                  color: kAccentColor,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
-              ),
-            ),
-
-            if (userRole == "student") ...[
+            if (userRole == 'student') ...[
               _buildSectionHeader("Academic Information", Icons.school),
 
-              _buildDropdown(
-                label: "Section",
-                icon: Icons.group,
-                value: selectedSection,
-                items: sections,
-                onChanged: (v) => setState(() => selectedSection = v),
-                required: true,
-              ),
+              // ── FIX: replaced editable DropdownButtonFormField with the
+              //         read-only _buildReadOnlySectionField() widget.
+              //         The section value is loaded from Firestore on init
+              //         and is NEVER written back in _saveProfile().
+              _buildReadOnlySectionField(),
               const SizedBox(height: kSpacing),
 
               _buildTextField(
